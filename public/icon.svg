@@ -1,0 +1,40 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#87CEEB" stopOpacity="1" />
+      <stop offset="50%" stopColor="#B0E0E6" stopOpacity="0.8" />
+      <stop offset="100%" stopColor="#F0F8FF" stopOpacity="0.6" />
+    </linearGradient>
+    <linearGradient id="mountainGradient1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#2B8A67" stopOpacity="0.9" />
+      <stop offset="100%" stopColor="#0D5A42" stopOpacity="1" />
+    </linearGradient>
+    <linearGradient id="mountainGradient2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#4BA584" stopOpacity="0.85" />
+      <stop offset="100%" stopColor="#1B6A52" stopOpacity="1" />
+    </linearGradient>
+    <linearGradient id="leafGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#72D668" stopOpacity="1" />
+      <stop offset="100%" stopColor="#2FB16B" stopOpacity="1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect width="180" height="180" rx="40" fill="url(#skyGradient)" />
+  
+  <!-- Mountains -->
+  <path d="M 20 130 L 70 60 L 120 100 L 180 50 L 180 180 L 20 180 Z" fill="url(#mountainGradient1)" />
+  <path d="M 50 140 L 90 85 L 140 120 L 180 90 L 180 180 L 50 180 Z" fill="url(#mountainGradient2)" />
+  
+  <!-- Clouds for environment theme -->
+  <ellipse cx="45" cy="35" rx="15" ry="10" fill="white" fillOpacity="0.7" />
+  <ellipse cx="55" cy="38" rx="12" ry="8" fill="white" fillOpacity="0.6" />
+  <ellipse cx="135" cy="28" rx="18" ry="11" fill="white" fillOpacity="0.65" />
+  <ellipse cx="148" cy="32" rx="14" ry="9" fill="white" fillOpacity="0.55" />
+  
+  <!-- Leaf accent for environment monitoring -->
+  <g transform="translate(85, 75)">
+    <path d="M 0 -8 Q 3 -4 3 0 Q 3 4 0 8 Q -3 4 -3 0 Q -3 -4 0 -8 Z" fill="url(#leafGradient)" />
+    <path d="M -1 -6 L 0 0 L 1 6" stroke="#FFF" strokeWidth="0.5" opacity="0.8" />
+  </g>
+</svg>

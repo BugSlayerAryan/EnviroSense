@@ -1,0 +1,32 @@
+<svg width="1400" height="500" viewBox="0 0 1400 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="700" y1="0" x2="700" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#352A74"/>
+      <stop offset="0.55" stop-color="#1A2355"/>
+      <stop offset="1" stop-color="#0E1638"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(930 118) rotate(136) scale(234 146)">
+      <stop stop-color="#FFB37A" stop-opacity="0.7"/>
+      <stop offset="0.6" stop-color="#F971B5" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#9C65FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="m1" x1="700" y1="160" x2="700" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A3272"/>
+      <stop offset="1" stop-color="#151D46"/>
+    </linearGradient>
+    <linearGradient id="m2" x1="700" y1="190" x2="700" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#222B66"/>
+      <stop offset="1" stop-color="#131A3E"/>
+    </linearGradient>
+    <linearGradient id="m3" x1="700" y1="240" x2="700" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B255A"/>
+      <stop offset="1" stop-color="#101734"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="500" fill="url(#sky)"/>
+  <rect width="1400" height="500" fill="url(#sun)"/>
+  <path d="M0 288L70 268C140 248 280 208 420 216C560 224 700 280 840 292C980 304 1120 272 1260 252L1400 232V500H0V288Z" fill="url(#m1)"/>
+  <path d="M0 332L90 310C180 288 360 244 540 252C720 260 900 320 1080 332C1260 344 1350 308 1400 290V500H0V332Z" fill="url(#m2)"/>
+  <path d="M0 382L120 360C240 338 480 294 700 304C920 314 1120 378 1280 408L1400 430V500H0V382Z" fill="url(#m3)"/>
+  <path d="M0 430C80 402 160 388 240 398C320 408 400 442 480 448C560 454 640 432 720 426C800 420 880 430 960 444C1040 458 1120 476 1200 472C1280 468 1360 442 1400 430V500H0V430Z" fill="#0B112A" fill-opacity="0.6"/>
+</svg>
