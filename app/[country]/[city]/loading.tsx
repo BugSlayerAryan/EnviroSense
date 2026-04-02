@@ -1,5 +1,9 @@
-import { DashboardHomeLoading } from "@/components/dashboard/route-loading"
+import { DashboardLoadingShell, DashboardHomeContentLoading } from "@/components/dashboard/route-loading"
 
 export default function Loading() {
-  return <DashboardHomeLoading />
+  return (
+    <DashboardLoadingShell>
+      <DashboardHomeContentLoading />
+    </DashboardLoadingShell>
+  )
 }

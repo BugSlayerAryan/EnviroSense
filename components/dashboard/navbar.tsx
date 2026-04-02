@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { Suspense } from "react"
 import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { fetchWeatherData, reverseGeocodeCity } from "@/api/api"
+import { resolveCityLocation, reverseGeocodeCity } from "@/api/api"
 import { useTheme } from "next-themes"
 import { buildCityRoute, buildDashboardRoute, extractCityFromPathname, extractDashboardCityFromPathname, isDashboardRoute } from "@/lib/location-route"
 
@@ -271,9 +271,9 @@ function NavbarClient() {
     setLocationError("")
 
     try {
-      const weather = await fetchWeatherData(trimmed, true)
-      const resolvedCity = typeof weather?.city === "string" ? weather.city.trim() : ""
-      const resolvedCountry = typeof weather?.country === "string" ? weather.country.trim() : ""
+      const location = await resolveCityLocation(trimmed, true)
+      const resolvedCity = typeof location?.city === "string" ? location.city.trim() : ""
+      const resolvedCountry = typeof location?.country === "string" ? location.country.trim() : ""
 
       if (resolvedCity && resolvedCountry) {
         applyCityQuery(`${resolvedCity}, ${resolvedCountry}`)

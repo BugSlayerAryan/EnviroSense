@@ -107,4 +107,25 @@ export async function reverseGeocodeCity(lat, lon, useCache = true) {
 	return data
 }
 
+export async function resolveCityLocation(city = DEFAULT_CITY, useCache = true) {
+	const cacheKey = getCacheKey("resolve-city", city)
+
+	if (useCache) {
+		const cached = globalCache.get(cacheKey)
+		if (cached) return cached
+	}
+
+	const response = await fetch(`/api/live/resolve-city?city=${encodeURIComponent(city)}`, {
+		method: "GET",
+		cache: "no-store",
+	})
+	const data = await parseResponse(response)
+
+	if (useCache) {
+		globalCache.set(cacheKey, data, 300000)
+	}
+
+	return data
+}
+
 export { DEFAULT_CITY }
