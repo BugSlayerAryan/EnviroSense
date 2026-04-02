@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
@@ -31,6 +32,13 @@ import {
 import { fetchAqiData, fetchWeatherData } from "@/api/api"
 import { useSearchParams } from "next/navigation"
 import { AqiDashboardSkeleton } from "@/components/dashboard/loading-states"
+import { useTheme } from "next-themes"
+import type { CityMarker } from "@/components/dashboard/maps/types"
+
+const MapView = dynamic(
+  () => import("@/components/dashboard/maps/map-view").then((module) => module.MapView),
+  { ssr: false },
+)
 
 type Pollutant = {
   key: string
@@ -390,6 +398,7 @@ type AirQualityDashboardProps = {
 
 export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
   const searchParams = useSearchParams()
+  const { resolvedTheme } = useTheme()
   const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, India"
   const [city, setCity] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -405,6 +414,18 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
   const [weatherWindKmh, setWeatherWindKmh] = useState<number | null>(null)
   const [weatherUpdatedAt, setWeatherUpdatedAt] = useState<Date | null>(null)
   const [timeNowMs, setTimeNowMs] = useState(Date.now())
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629])
+  const [mapZoom, setMapZoom] = useState(5)
+  const [mapMarker, setMapMarker] = useState<CityMarker | null>(null)
+
+  const tileUrl = useMemo(() => {
+    return resolvedTheme === "dark"
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  }, [resolvedTheme])
+
+  const tileAttribution =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
 
   const healthCardMeta = {
     Protection: {
@@ -535,6 +556,29 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         const conditionRaw = typeof weatherData?.condition === "string" ? weatherData.condition : typeof weatherData?.description === "string" ? weatherData.description : null
         setWeatherCondition(conditionRaw ? toTitleCase(conditionRaw) : null)
         setWeatherUpdatedAt(conditionRaw || typeof weatherData?.temp === "number" ? new Date() : null)
+
+        const lat = typeof weatherData?.coord?.lat === "number" ? weatherData.coord.lat : null
+        const lon = typeof weatherData?.coord?.lon === "number" ? weatherData.coord.lon : null
+        if (typeof lat === "number" && typeof lon === "number") {
+          const markerCity = typeof weatherData?.city === "string" ? weatherData.city : fetchCity
+          const markerCountry = typeof weatherData?.country === "string" ? weatherData.country : ""
+
+          setMapCenter([lat, lon])
+          setMapZoom(11)
+          setMapMarker({
+            id: "aqi-searched-city",
+            city: markerCity,
+            country: markerCountry,
+            lat,
+            lng: lon,
+            isCurrentLocation: true,
+            data: {
+              aqi: typeof data?.aqi === "number" ? data.aqi : 0,
+              temperature: typeof weatherData?.temp === "number" ? Math.round(weatherData.temp) : 0,
+              uv: 0,
+            },
+          })
+        }
       } catch {
         setWeatherTemp(null)
         setWeatherHumidity(null)
@@ -641,7 +685,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
 
   if (isLoading) {
     return (
-      <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
+      <section className="dashboard-scroll flex-1 overflow-y-auto px-2 pb-20 pt-3 sm:px-4 md:px-6 lg:px-8 lg:pb-8 lg:pt-6">
         <AqiDashboardSkeleton />
       </section>
     )
@@ -666,7 +710,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05, duration: 0.35 }}
-        className="mb-5 rounded-2xl border border-white/50 bg-white/70 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.12)] ring-1 ring-white/40 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] sm:mb-6 sm:p-6"
+        className="mb-4 rounded-xl border border-white/50 bg-white/70 p-3 shadow-[0_14px_36px_rgba(15,23,42,0.12)] ring-1 ring-white/40 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] sm:mb-5 sm:rounded-2xl sm:p-4 md:p-5 lg:mb-6 lg:p-6"
       >
         <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-sky-100/55 via-emerald-100/45 to-amber-100/50 dark:from-sky-500/15 dark:via-emerald-500/10 dark:to-amber-500/10" />
         <div className="relative z-10 mb-5">
@@ -679,7 +723,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
           </p>
         </div>
 
-        <div className="relative z-10 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-center">
+        <div className="relative z-10 grid grid-cols-1 gap-3 sm:gap-4 md:gap-5 md:grid-cols-[minmax(0,1fr)_420px] lg:grid-cols-[minmax(0,1fr)_560px] lg:items-center">
           <div>
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -690,29 +734,29 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
               <MapPin className="h-3.5 w-3.5" />
               {city ?? "--"}
             </motion.div>
-            <h2 className={`text-3xl font-bold sm:text-5xl ${aqiUiTone.valueText}`}>{formatValue(currentAqi)}</h2>
+            <h2 className={`text-2xl font-bold sm:text-3xl md:text-4xl lg:text-5xl ${aqiUiTone.valueText}`}>{formatValue(currentAqi)}</h2>
             <p className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${aqiUiTone.badge}`}>
               {aqiCategory}
             </p>
-            <p className="mt-3 max-w-xl text-xs text-gray-600 dark:text-gray-300 sm:text-sm">
+            <p className="mt-2 max-w-md text-xs text-gray-600 dark:text-gray-300 sm:mt-3 sm:max-w-lg sm:text-sm md:text-base">
               Live air quality insights with health-first guidance. Adjust outdoor plans, exercise intensity, and mask usage based on current risk.
             </p>
             <button
               type="button"
               onClick={() => void handleRefresh()}
-              className="mt-4 w-full rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:bg-white/80 dark:bg-white/10 dark:text-white sm:w-auto"
+              className="mt-3 w-full rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:bg-white/80 dark:bg-white/10 dark:text-white sm:mt-4 sm:w-auto sm:rounded-xl sm:py-2"
             >
               {isLoading ? "Refreshing..." : "Refresh Data"}
             </button>
           </div>
 
-          <div className="rounded-2xl border border-white/50 bg-white/75 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ring-1 ring-white/40 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 sm:p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800 dark:text-white">AQI Indicator</p>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:bg-slate-700/60 dark:text-slate-200">Scale 0-500</span>
+          <div className="rounded-xl border border-white/50 bg-white/75 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)] ring-1 ring-white/40 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 sm:rounded-2xl sm:p-4 md:p-4.5 lg:p-5">
+            <div className="mb-2 flex items-center justify-between sm:mb-3">
+              <p className="text-xs font-semibold text-gray-800 dark:text-white sm:text-sm">AQI Indicator</p>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-slate-700/60 dark:text-slate-200 sm:px-2.5 sm:py-1 sm:text-[10px]">Scale 0-500</span>
             </div>
-            <div className="relative mt-8 pb-14">
-              <div className="relative h-8 w-full overflow-visible rounded-full bg-slate-200/80 dark:bg-slate-700/80" aria-label="AQI color scale">
+            <div className="relative mt-5 pb-12 sm:mt-6 sm:pb-14 md:mt-8">
+              <div className="relative h-6 w-full overflow-visible rounded-full bg-slate-200/80 dark:bg-slate-700/80 sm:h-7 md:h-8" aria-label="AQI color scale">
                 <div className="h-full w-full rounded-full bg-[linear-gradient(90deg,#22c55e_0%,#84cc16_20%,#facc15_40%,#f97316_62%,#ef4444_82%,#a855f7_100%)]" />
                 <motion.div
                   className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
@@ -739,7 +783,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
                 </motion.div>
               </div>
             </div>
-            <div className="mt-0 grid grid-cols-5 text-[11px] font-medium">
+            <div className="mt-0 grid grid-cols-5 text-[10px] font-medium sm:text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-300">Good</span>
               <span className="text-lime-600 dark:text-lime-300">Fair</span>
               <span className="text-amber-600 dark:text-amber-300">Moderate</span>
@@ -750,13 +794,13 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         </div>
       </motion.div>
 
-      <div className="mb-6">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Pollutant Breakdown</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Real-time concentration metrics vs previous-day baseline</p>
+      <div className="mb-4 sm:mb-6">
+        <div className="mb-2 flex flex-col gap-0.5 sm:mb-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-xs font-semibold text-gray-800 dark:text-white sm:text-sm">Pollutant Breakdown</h3>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 sm:text-xs">Real-time concentration metrics vs previous-day baseline</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 md:gap-4 lg:grid-cols-3">
         {isLoading
           ? Array.from({ length: 6 }).map((_, idx) => <SkeletonCard key={`pollutant-skeleton-${idx}`} />)
           : pollutants.map((item, index) => {
@@ -771,7 +815,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25, delay: 0.04 * index }}
                   whileHover={{ y: -3 }}
-                  className="rounded-2xl border border-white/40 bg-white/60 p-3 shadow-[0_8px_32px_rgba(31,38,135,0.15)] ring-1 ring-white/30 backdrop-blur-xl transition-all duration-300 ease-in-out dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] sm:p-4"
+                  className="rounded-lg border border-white/40 bg-white/60 p-2 shadow-[0_8px_32px_rgba(31,38,135,0.15)] ring-1 ring-white/30 backdrop-blur-xl transition-all duration-300 ease-in-out dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] sm:rounded-2xl sm:p-3 md:p-4"
                 >
                   <div className="mb-3 flex items-start justify-between">
                     <div className={`rounded-xl bg-linear-to-r p-2 shadow-sm ${getToneClasses(item.tone)}`}>
@@ -791,10 +835,10 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
                     </div>
                   </div>
 
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{item.label}</p>
-                  <div className="mt-1 flex items-end gap-1.5">
-                    <p className="text-2xl font-bold leading-none text-gray-800 dark:text-white sm:text-3xl">{formatValue(item.value)}</p>
-                    <p className="pb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{item.unit}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-tight text-gray-500 dark:text-gray-400 sm:text-xs sm:tracking-wide">{item.label}</p>
+                  <div className="mt-1 flex items-end gap-1">
+                    <p className="text-lg font-bold leading-none text-gray-800 dark:text-white sm:text-xl md:text-2xl">{formatValue(item.value)}</p>
+                    <p className="pb-0.5 text-[9px] font-medium text-gray-500 dark:text-gray-400 sm:pb-1 sm:text-xs">{item.unit}</p>
                   </div>
 
                   <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/60 dark:bg-white/10">
@@ -806,7 +850,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:gap-4 md:gap-5 xl:grid-cols-2">
         <motion.article
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -816,17 +860,17 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         >
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-gray-800 dark:text-white">AQI Trend (Hourly)</h3>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Fine-grained variation for today</p>
+              <h3 className="text-xs font-semibold text-gray-800 dark:text-white sm:text-base">AQI Trend (Hourly)</h3>
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 sm:text-xs">Fine-grained variation for today</p>
             </div>
-            <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:bg-white/10 dark:text-emerald-300">
+            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[9px] font-semibold text-emerald-600 dark:bg-white/10 dark:text-emerald-300 sm:px-2.5 sm:py-1 sm:text-[11px]">
               Live
             </span>
           </div>
 
           <div className="mb-3 grid grid-cols-3 gap-1.5 text-xs sm:gap-2">
             <div className="rounded-lg bg-white/70 px-2.5 py-2 text-center dark:bg-white/10">
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">Peak</p>
+              <p className="text-[9px] text-gray-500 dark:text-gray-400 sm:text-[10px]">Peak</p>
               <p className="font-bold text-gray-800 dark:text-white">{formatValue(hourlyStats.peak)}</p>
             </div>
             <div className="rounded-lg bg-white/70 px-2.5 py-2 text-center dark:bg-white/10">
@@ -887,10 +931,10 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         >
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-gray-800 dark:text-white">AQI Trend (Weekly)</h3>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">7-day city-level trend</p>
+              <h3 className="text-xs font-semibold text-gray-800 dark:text-white sm:text-base">AQI Trend (Weekly)</h3>
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 sm:text-xs">7-day city-level trend</p>
             </div>
-            <span className="rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:bg-white/10 dark:text-blue-300">
+            <span className="rounded-full bg-white/70 px-2 py-0.5 text-[9px] font-semibold text-blue-600 dark:bg-white/10 dark:text-blue-300 sm:px-2.5 sm:py-1 sm:text-[11px]">
               7 Days
             </span>
           </div>
@@ -936,7 +980,7 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         </motion.article>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:gap-4 md:gap-5 xl:grid-cols-[1fr_1fr]">
         <motion.article
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -946,8 +990,8 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         >
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-gray-800 dark:text-white">Weather</h3>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Local atmospheric conditions</p>
+              <h3 className="text-xs font-semibold text-gray-800 dark:text-white sm:text-base">Weather</h3>
+              <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 sm:text-xs">Local atmospheric conditions</p>
             </div>
             <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
               {weatherUpdatedLabel}
@@ -1003,12 +1047,13 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
           </div>
 
           <div className="-mx-3 -mb-3 h-56 overflow-hidden rounded-b-2xl border-t border-white/30 bg-white/40 sm:-mx-4 sm:-mb-4 sm:h-72 dark:border-white/10 dark:bg-white/5">
-            <iframe
-              title="New Delhi AQI map"
-              src="https://www.openstreetmap.org/export/embed.html?bbox=77.145%2C28.545%2C77.275%2C28.675&layer=mapnik&marker=28.6139%2C77.2090"
-              className="h-full w-full"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
+            <MapView
+              markers={mapMarker ? [mapMarker] : []}
+              center={mapCenter}
+              zoom={mapZoom}
+              activeLayer="aqi"
+              tileUrl={tileUrl}
+              tileAttribution={tileAttribution}
             />
           </div>
         </motion.article>

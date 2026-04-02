@@ -1,11 +1,14 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { MapPin } from "lucide-react"
 import { useTheme } from "next-themes"
+import { usePathname, useSearchParams } from "next/navigation"
 import { CITY_MARKERS, DEFAULT_CENTER } from "@/components/dashboard/maps/mock-data"
 import type { LayerView } from "@/components/dashboard/maps/types"
+import { fetchAqiData, fetchUvData, fetchWeatherData } from "@/api/api"
+import { extractCityFromPathname, extractDashboardCityFromPathname } from "@/lib/location-route"
 
 const MapView = dynamic(
   () => import("@/components/dashboard/maps/map-view").then((module) => module.MapView),
@@ -19,12 +22,101 @@ const LAYERS: Array<{ id: LayerView; label: string }> = [
 ]
 
 export function MapDashboard() {
-  const [markers] = useState(CITY_MARKERS)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const requestedCity = (
+    searchParams.get("city")
+    ?? extractDashboardCityFromPathname(pathname)
+    ?? extractCityFromPathname(pathname)
+    ?? "New Delhi, India"
+  ).trim()
+
+  const [markers, setMarkers] = useState(CITY_MARKERS)
   const [center, setCenter] = useState<[number, number]>(DEFAULT_CENTER)
   const [zoom, setZoom] = useState(4)
   const [activeLayer, setActiveLayer] = useState<LayerView>("aqi")
+  const [currentLocationLabel, setCurrentLocationLabel] = useState("Delhi, India")
 
-  const currentLocationLabel = "Delhi, India"
+  useEffect(() => {
+    let cancelled = false
+
+    const applyCityFocus = async () => {
+      const cityInput = requestedCity || "New Delhi, India"
+      const fallbackCity = cityInput.split(",")[0]?.trim().toLowerCase()
+      const localMarker = CITY_MARKERS.find((marker) => marker.city.toLowerCase() === fallbackCity)
+
+      if (localMarker) {
+        setCenter([localMarker.lat, localMarker.lng])
+        setZoom(8)
+        setCurrentLocationLabel(`${localMarker.city}, ${localMarker.country}`)
+      }
+
+      try {
+        const [weatherResult, aqiResult, uvResult] = await Promise.allSettled([
+          fetchWeatherData(cityInput),
+          fetchAqiData(cityInput),
+          fetchUvData(cityInput),
+        ])
+
+        if (cancelled) return
+
+        const weather = weatherResult.status === "fulfilled" ? weatherResult.value : null
+        const aqi = aqiResult.status === "fulfilled" ? aqiResult.value : null
+        const uv = uvResult.status === "fulfilled" ? uvResult.value : null
+
+        const lat = typeof weather?.coord?.lat === "number" ? weather.coord.lat : localMarker?.lat
+        const lng = typeof weather?.coord?.lon === "number" ? weather.coord.lon : localMarker?.lng
+
+        if (typeof lat === "number" && typeof lng === "number") {
+          setCenter([lat, lng])
+          setZoom(11)
+        }
+
+        const resolvedCity = typeof weather?.city === "string" ? weather.city : localMarker?.city ?? cityInput
+        const resolvedCountry = typeof weather?.country === "string" ? weather.country : localMarker?.country ?? ""
+
+        setCurrentLocationLabel(resolvedCountry ? `${resolvedCity}, ${resolvedCountry}` : resolvedCity)
+
+        if (typeof lat === "number" && typeof lng === "number") {
+          const dynamicMarker = {
+            id: "searched-city",
+            city: resolvedCity,
+            country: resolvedCountry || "",
+            lat,
+            lng,
+            isCurrentLocation: true,
+            data: {
+              aqi: typeof aqi?.aqi === "number" ? aqi.aqi : 0,
+              temperature: typeof weather?.temp === "number" ? Math.round(weather.temp) : 0,
+              uv: typeof uv?.currentUv === "number" ? uv.currentUv : 0,
+            },
+          }
+
+          setMarkers([
+            dynamicMarker,
+            ...CITY_MARKERS.filter((marker) => marker.id !== "searched-city"),
+          ])
+        } else {
+          setMarkers(CITY_MARKERS)
+        }
+      } catch {
+        if (cancelled) return
+
+        if (!localMarker) {
+          setCenter(DEFAULT_CENTER)
+          setZoom(4)
+          setCurrentLocationLabel("Delhi, India")
+          setMarkers(CITY_MARKERS)
+        }
+      }
+    }
+
+    void applyCityFocus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [requestedCity])
 
   const { resolvedTheme } = useTheme()
 

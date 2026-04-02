@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { type ComponentType, useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
@@ -32,6 +33,13 @@ import { WeeklyForecast } from "@/components/dashboard/weather/weekly-forecast"
 import type { WeeklyForecastDay } from "@/components/dashboard/weather/utils"
 import { useSearchParams } from "next/navigation"
 import { WeatherDashboardSkeleton } from "@/components/dashboard/loading-states"
+import { useTheme } from "next-themes"
+import type { CityMarker } from "@/components/dashboard/maps/types"
+
+const MapView = dynamic(
+  () => import("@/components/dashboard/maps/map-view").then((module) => module.MapView),
+  { ssr: false },
+)
 
 type HourlyForecast = {
   time: string
@@ -131,6 +139,7 @@ type WeatherDashboardProps = {
 
 export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
   const searchParams = useSearchParams()
+  const { resolvedTheme } = useTheme()
   const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, India"
   const [location, setLocation] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -154,6 +163,18 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
   const [daylightText, setDaylightText] = useState<string | null>(null)
   const [moonPhaseLabel, setMoonPhaseLabel] = useState<string | null>(null)
   const [moonIllumination, setMoonIllumination] = useState<number | null>(null)
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629])
+  const [mapZoom, setMapZoom] = useState(5)
+  const [mapMarker, setMapMarker] = useState<CityMarker | null>(null)
+
+  const tileUrl = useMemo(() => {
+    return resolvedTheme === "dark"
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  }, [resolvedTheme])
+
+  const tileAttribution =
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
 
   const precipitationSeries = useMemo(
     () => weeklyData.slice(0, 7).map((item) => {
@@ -256,6 +277,29 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         setDewPoint(null)
       }
       setUvIndex(typeof uvData?.currentUv === "number" ? Math.round(uvData.currentUv) : null)
+
+      const lat = typeof weatherData?.coord?.lat === "number" ? weatherData.coord.lat : null
+      const lon = typeof weatherData?.coord?.lon === "number" ? weatherData.coord.lon : null
+      if (typeof lat === "number" && typeof lon === "number") {
+        const markerCity = typeof weatherData?.city === "string" ? weatherData.city : selectedCity
+        const markerCountry = typeof weatherData?.country === "string" ? weatherData.country : ""
+
+        setMapCenter([lat, lon])
+        setMapZoom(11)
+        setMapMarker({
+          id: "weather-searched-city",
+          city: markerCity,
+          country: markerCountry,
+          lat,
+          lng: lon,
+          isCurrentLocation: true,
+          data: {
+            aqi: 0,
+            temperature: typeof weatherData?.temp === "number" ? Math.round(weatherData.temp) : 0,
+            uv: typeof uvData?.currentUv === "number" ? Math.round(uvData.currentUv) : 0,
+          },
+        })
+      }
 
       if (weatherData?.astronomy) {
         setSunriseText(typeof weatherData.astronomy.sunrise === "string" ? weatherData.astronomy.sunrise : null)
@@ -639,12 +683,13 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         </div>
 
         <div className="h-64 overflow-hidden rounded-xl border border-white/30 bg-white/40 sm:h-72 dark:border-white/10 dark:bg-white/5">
-          <iframe
-            title="New Delhi weather map"
-            src="https://www.openstreetmap.org/export/embed.html?bbox=77.145%2C28.545%2C77.275%2C28.675&layer=mapnik&marker=28.6139%2C77.2090"
-            className="h-full w-full"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
+          <MapView
+            markers={mapMarker ? [mapMarker] : []}
+            center={mapCenter}
+            zoom={mapZoom}
+            activeLayer="weather"
+            tileUrl={tileUrl}
+            tileAttribution={tileAttribution}
           />
         </div>
       </motion.article>

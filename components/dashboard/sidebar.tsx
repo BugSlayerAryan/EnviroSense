@@ -93,7 +93,7 @@ function SidebarClient() {
     <aside className="hidden h-full w-56 shrink-0 flex-col rounded-r-2xl border-r border-white/20 bg-white/50 px-4 py-5 backdrop-blur-xl lg:flex xl:w-64 dark:border-white/10 dark:bg-white/5">
       <div className="mb-8 px-1">
         <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="EnviroSense" width={64} height={64} className="h-16 w-16 shrink-0 object-contain" />
+          <Image src="/logo.png" alt="EnviroSense" width={64} height={64} loading="eager" className="h-16 w-16 shrink-0 object-contain" />
           <div className="flex flex-col leading-tight">
             <p className="text-base font-bold tracking-tight text-gray-900 dark:text-white">EnviroSense</p>
             <p className="mt-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">Environment First</p>
