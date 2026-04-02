@@ -1,10 +1,11 @@
 "use client"
 
+import React, { useEffect, useMemo, useState, useCallback } from "react"
 import { HeartPulse } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { calculateEnvironmentScore, type EnvironmentalData } from "@/lib/environment-score-calculator"
+import { fetchAqiData, fetchWeatherData, fetchUvData } from "@/api/api"
 
 type HealthTipCardProps = {
   city?: string
@@ -65,57 +66,42 @@ export function HealthTipCard({ city }: HealthTipCardProps) {
   const [scoreCategory, setScoreCategory] = useState<string>("Loading")
   const [tipText, setTipText] = useState("Loading health advice for current environmental conditions...")
 
-  useEffect(() => {
-    let cancelled = false
+  const loadTip = useCallback(async () => {
+    try {
+      const cityForApi = activeCity.trim() || "New Delhi, India"
+      const [aqiData, weatherData, uvData] = await Promise.all([
+        fetchAqiData(cityForApi, true),
+        fetchWeatherData(cityForApi, true),
+        fetchUvData(cityForApi, true),
+      ])
 
-    const loadTip = async () => {
-      try {
-        const cityForApi = activeCity.trim() || "New Delhi, India"
-        const [aqiRes, weatherRes, uvRes] = await Promise.all([
-          fetch(`/api/live/aqi?city=${encodeURIComponent(cityForApi)}`),
-          fetch(`/api/live/weather?city=${encodeURIComponent(cityForApi)}`),
-          fetch(`/api/live/uv?city=${encodeURIComponent(cityForApi)}`),
-        ])
-
-        const [aqiData, weatherData, uvData] = await Promise.all([
-          aqiRes.ok ? aqiRes.json() : Promise.resolve({}),
-          weatherRes.ok ? weatherRes.json() : Promise.resolve({}),
-          uvRes.ok ? uvRes.json() : Promise.resolve({}),
-        ])
-
-        if (cancelled) return
-
-        const environmentalData: EnvironmentalData = {
-          aqi: aqiData?.aqi ?? null,
-          uv: uvData?.currentUv ?? null,
-          temperature: weatherData?.temp ?? null,
-          humidity: weatherData?.humidity ?? null,
-          windSpeed: weatherData?.windKmh ? weatherData.windKmh / 3.6 : null,
-          pollutants: {
-            pm25: aqiData?.pollutants?.pm25 ?? null,
-            pm10: aqiData?.pollutants?.pm10 ?? null,
-            no2: aqiData?.pollutants?.no2 ?? null,
-          },
-        }
-
-        const score = calculateEnvironmentScore(environmentalData)
-        setScoreValue(score.totalScore)
-        setScoreCategory(score.category)
-        setTipText(score.recommendation)
-      } catch {
-        if (cancelled) return
-        setScoreValue(null)
-        setScoreCategory("Moderate")
-        setTipText("Current air quality is elevated. Individuals with asthma, allergies, or heart conditions should limit outdoor activities and wear appropriate protection.")
+      const environmentalData: EnvironmentalData = {
+        aqi: aqiData?.aqi ?? null,
+        uv: uvData?.currentUv ?? null,
+        temperature: weatherData?.temp ?? null,
+        humidity: weatherData?.humidity ?? null,
+        windSpeed: weatherData?.windKmh ? weatherData.windKmh / 3.6 : null,
+        pollutants: {
+          pm25: aqiData?.pollutants?.pm25 ?? null,
+          pm10: aqiData?.pollutants?.pm10 ?? null,
+          no2: aqiData?.pollutants?.no2 ?? null,
+        },
       }
-    }
 
-    void loadTip()
-
-    return () => {
-      cancelled = true
+      const score = calculateEnvironmentScore(environmentalData)
+      setScoreValue(score.totalScore)
+      setScoreCategory(score.category)
+      setTipText(score.recommendation)
+    } catch {
+      setScoreValue(null)
+      setScoreCategory("Moderate")
+      setTipText("Current air quality is elevated. Individuals with asthma, allergies, or heart conditions should limit outdoor activities and wear appropriate protection.")
     }
   }, [activeCity])
+
+  useEffect(() => {
+    void loadTip()
+  }, [loadTip])
 
   const tone = useMemo(() => getTipTone(scoreValue), [scoreValue])
 
@@ -147,3 +133,5 @@ export function HealthTipCard({ city }: HealthTipCardProps) {
     </motion.div>
   )
 }
+
+export const HealthTipCardMemo = React.memo(HealthTipCard)

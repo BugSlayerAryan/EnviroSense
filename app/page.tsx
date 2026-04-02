@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation"
 import { buildDashboardRoute } from "@/lib/location-route"
 
-export const dynamic = "force-dynamic"
+// Use ISR with 5 second revalidation for better performance
+// Home page redirects to dashboard, so this allows caching of the redirect while keeping data fresh
+export const revalidate = 5
 
 type HomePageProps = {
   searchParams?: {

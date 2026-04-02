@@ -2,7 +2,7 @@
 
 import { LocateFixed, Moon, RefreshCw, Search, Sun, UserRound } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Suspense } from "react"
 import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -168,7 +168,7 @@ function NavbarClient() {
     setSearchValue(searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname) ?? DEFAULT_CITY)
   }, [pathname, searchParams])
 
-  const pushWithCity = (city: string) => {
+  const pushWithCity = useCallback((city: string) => {
     const trimmed = city.trim()
     if (!trimmed) return
 
@@ -196,20 +196,20 @@ function NavbarClient() {
     params.set("city", trimmed)
     const suffix = params.toString()
     router.push(suffix ? `${pathname}?${suffix}` : pathname)
-  }
+  }, [pathname, router, searchParams])
 
-  const applyCityQuery = (city: string) => {
+  const applyCityQuery = useCallback((city: string) => {
     pushWithCity(city)
-  }
+  }, [pushWithCity])
 
-  const handleSearchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmed = searchValue.trim()
     if (!trimmed) return
     setLocationError("")
 
     try {
-      const weather = await fetchWeatherData(trimmed)
+      const weather = await fetchWeatherData(trimmed, true)
       const resolvedCity = typeof weather?.city === "string" ? weather.city.trim() : ""
       const resolvedCountry = typeof weather?.country === "string" ? weather.country.trim() : ""
       const nextCity = resolvedCity
@@ -226,9 +226,9 @@ function NavbarClient() {
 
       applyCityQuery(trimmed)
     }
-  }
+  }, [searchValue, applyCityQuery, router])
 
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported in this browser. Showing New Delhi by default.")
       setSearchValue(DEFAULT_CITY)
@@ -243,7 +243,7 @@ function NavbarClient() {
       async (position) => {
         try {
           const { latitude, longitude } = position.coords
-          const reverse = await reverseGeocodeCity(latitude, longitude)
+          const reverse = await reverseGeocodeCity(latitude, longitude, true)
           const nextCity = reverse?.city || DEFAULT_CITY
           setSearchValue(nextCity)
           applyCityQuery(nextCity)
@@ -267,7 +267,7 @@ function NavbarClient() {
       },
       { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
     )
-  }
+  }, [applyCityQuery, pushWithCity])
 
   return (
     <header className="relative border-b border-white/25 bg-white/60 pl-0 pr-3 py-2.5 backdrop-blur-md dark:border-white/10 dark:bg-white/5 sm:px-4 lg:px-6">

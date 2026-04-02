@@ -3,7 +3,7 @@
 
 import { Wind, RefreshCw } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { fetchAqiData } from "@/api/api"
 import { AqiMetricSkeleton } from "@/components/dashboard/loading-states"
@@ -31,24 +31,27 @@ export function AqiCard({ initialCity }: AqiCardProps) {
     return "Very Unhealthy"
   }, [aqi])
 
-  const handleRefresh = async (requestedCity?: string) => {
-    setIsRefreshing(true)
-    setIsLoading(true)
-    try {
-      const data = await fetchAqiData((requestedCity ?? cityQuery).split(",")[0].trim())
-      setAqi(typeof data?.aqi === "number" ? data.aqi : null)
-      setPm25(typeof data?.pollutants?.pm25 === "number" ? Number(data.pollutants.pm25.toFixed(1)) : null)
-      setPm10(typeof data?.pollutants?.pm10 === "number" ? Number(data.pollutants.pm10.toFixed(1)) : null)
-      setCo(typeof data?.pollutants?.co === "number" ? Number(data.pollutants.co.toFixed(1)) : null)
-    } catch {
-      setAqi(null)
-      setPm25(null)
-      setPm10(null)
-      setCo(null)
-    }
-    setIsRefreshing(false)
-    setIsLoading(false)
-  }
+  const handleRefresh = useCallback(
+    async (requestedCity?: string) => {
+      setIsRefreshing(true)
+      setIsLoading(true)
+      try {
+        const data = await fetchAqiData((requestedCity ?? cityQuery).split(",")[0].trim(), true)
+        setAqi(typeof data?.aqi === "number" ? data.aqi : null)
+        setPm25(typeof data?.pollutants?.pm25 === "number" ? Number(data.pollutants.pm25.toFixed(1)) : null)
+        setPm10(typeof data?.pollutants?.pm10 === "number" ? Number(data.pollutants.pm10.toFixed(1)) : null)
+        setCo(typeof data?.pollutants?.co === "number" ? Number(data.pollutants.co.toFixed(1)) : null)
+      } catch {
+        setAqi(null)
+        setPm25(null)
+        setPm10(null)
+        setCo(null)
+      }
+      setIsRefreshing(false)
+      setIsLoading(false)
+    },
+    [cityQuery],
+  )
 
   useEffect(() => {
     void handleRefresh(cityQuery)
@@ -96,3 +99,5 @@ export function AqiCard({ initialCity }: AqiCardProps) {
     </motion.div>
   )
 }
+
+export const AqiCardMemo = React.memo(AqiCard)
