@@ -4,6 +4,8 @@ import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { UvDashboard } from "@/components/dashboard/uvindex/uv-dashboard"
 
+export const dynamic = 'force-dynamic'
+
 export default function UvIndexPage() {
   return (
     <main className="relative h-dvh overflow-hidden">

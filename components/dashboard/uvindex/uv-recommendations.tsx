@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { getProtectionTips } from "@/components/dashboard/uvindex/utils"
+import { getProtectionTips, getUvCategory, getUvToneClasses } from "@/components/dashboard/uvindex/utils"
 
 type UvRecommendationsProps = {
   uvValue: number
@@ -9,7 +9,9 @@ type UvRecommendationsProps = {
 
 export function UvRecommendations({ uvValue }: UvRecommendationsProps) {
   const tips = getProtectionTips(uvValue)
-  const riskLabel = uvValue >= 8 ? "High Risk" : uvValue >= 6 ? "Elevated" : "Manageable"
+  const category = getUvCategory(uvValue)
+  const riskLabel = category === "Low" ? "Low Risk" : category === "Moderate" ? "Moderate Risk" : `${category} Risk`
+  const uvLabel = uvValue.toFixed(1)
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
@@ -19,8 +21,9 @@ export function UvRecommendations({ uvValue }: UvRecommendationsProps) {
         <div>
           <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">Protection Recommendations</h3>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">Personalized precautions based on current UV intensity</p>
+          <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">Current UV: {uvLabel} ({category})</p>
         </div>
-        <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-300">
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getUvToneClasses(uvValue)}`}>
           {riskLabel}
         </span>
       </div>

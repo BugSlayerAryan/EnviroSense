@@ -4,6 +4,8 @@ import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { WeatherDashboard } from "@/components/dashboard/weather/weather-dashboard"
 
+export const dynamic = 'force-dynamic'
+
 export default function WeatherPage() {
   return (
     <main className="relative h-dvh overflow-hidden">

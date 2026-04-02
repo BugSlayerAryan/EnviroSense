@@ -4,7 +4,9 @@ import { Bell, Bookmark, Cloud, LayoutDashboard, Map, MapPin, Sun, Wind } from "
 import { motion } from "framer-motion"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { reverseGeocodeCity } from "@/api/api"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -18,6 +20,41 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [isDetecting, setIsDetecting] = useState(false)
+
+  const activeCity = searchParams.get("city") ?? "New Delhi, India"
+
+  const buildHref = (href: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (activeCity) {
+      params.set("city", activeCity)
+    }
+    const suffix = params.toString()
+    return suffix ? `${href}?${suffix}` : href
+  }
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) return
+    setIsDetecting(true)
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        const reverse = await reverseGeocodeCity(latitude, longitude)
+        const nextCity = reverse?.city || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`
+        const params = new URLSearchParams(searchParams.toString())
+        params.set("city", nextCity)
+        router.push(`${pathname}?${params.toString()}`)
+        setIsDetecting(false)
+      },
+      () => {
+        setIsDetecting(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   return (
     <aside className="hidden h-full w-56 shrink-0 flex-col rounded-r-2xl border-r border-white/20 bg-white/50 px-4 py-5 backdrop-blur-xl lg:flex xl:w-64 dark:border-white/10 dark:bg-white/5">
@@ -43,7 +80,7 @@ export function Sidebar() {
                 : "bg-transparent text-gray-600 hover:bg-white/50 dark:text-gray-400 dark:hover:bg-white/5"
             }`}
           >
-            <Link href={item.href} className="flex w-full items-center gap-3 px-4 py-2.5">
+            <Link href={buildHref(item.href)} className="flex w-full items-center gap-3 px-4 py-2.5">
               <item.icon className="h-5 w-5 shrink-0" />
               <span className="truncate">{item.label}</span>
             </Link>
@@ -57,9 +94,12 @@ export function Sidebar() {
             <MapPin className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
             <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Current Location</span>
           </div>
-          <p className="mb-3 text-sm font-bold text-gray-900 dark:text-white">New Delhi, India</p>
-          <button className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-emerald-700 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-700">
-            Detect My Location
+          <p className="mb-3 text-sm font-bold text-gray-900 dark:text-white">{activeCity}</p>
+          <button
+            onClick={handleDetectLocation}
+            className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-emerald-700 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+          >
+            {isDetecting ? "Detecting..." : "Detect My Location"}
           </button>
         </motion.div>
 

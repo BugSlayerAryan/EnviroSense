@@ -3,7 +3,7 @@
 import { LayoutDashboard, Wind, Cloud, Sun, Map, Bell, Bookmark } from "lucide-react"
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -33,6 +33,17 @@ const itemVariants = {
 
 export function MobileNav() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const city = searchParams.get("city")
+
+  const buildHref = (href: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (city) {
+      params.set("city", city)
+    }
+    const suffix = params.toString()
+    return suffix ? `${href}?${suffix}` : href
+  }
 
   return (
     <motion.nav 
@@ -70,7 +81,7 @@ export function MobileNav() {
                 )}
 
                 {/* Icon */}
-                <Link href={item.href} className="relative flex flex-col items-center gap-1.5">
+                <Link href={buildHref(item.href)} className="relative flex flex-col items-center gap-1.5">
                   <motion.div
                     animate={pathname === item.href ? { scale: [1, 1.2, 1] } : {}}
                     transition={{ duration: 2, repeat: Infinity }}

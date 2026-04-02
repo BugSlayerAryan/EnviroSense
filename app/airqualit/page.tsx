@@ -4,6 +4,8 @@ import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { AirQualityDashboard } from "@/components/dashboard/airquality/aqi-dashboard"
 
+export const dynamic = 'force-dynamic'
+
 export default function AirQualitPage() {
   return (
     <main className="relative h-dvh overflow-hidden">

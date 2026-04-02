@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
   Droplets,
   HeartPulse,
   MapPin,
+  Minus,
   Sun,
   Thermometer,
   TrendingDown,
@@ -28,26 +29,92 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import { fetchAqiData, fetchWeatherData } from "@/api/api"
+import { useSearchParams } from "next/navigation"
 
 type Pollutant = {
   key: string
   label: string
   value: number
   unit: string
-  trend: "up" | "down"
+  trend: "up" | "down" | "flat"
   delta: string
   tone: "green" | "yellow" | "orange" | "red" | "blue"
   icon: React.ComponentType<{ className?: string }>
 }
 
-const pollutants: Pollutant[] = [
-  { key: "pm25", label: "PM2.5", value: 85, unit: "ug/m3", trend: "up", delta: "+8%", tone: "red", icon: Factory },
-  { key: "pm10", label: "PM10", value: 120, unit: "ug/m3", trend: "up", delta: "+6%", tone: "orange", icon: Car },
-  { key: "co", label: "CO", value: 2.4, unit: "ppm", trend: "down", delta: "-3%", tone: "yellow", icon: Wind },
-  { key: "no2", label: "NO2", value: 46, unit: "ppb", trend: "up", delta: "+2%", tone: "orange", icon: Navigation },
-  { key: "so2", label: "SO2", value: 18, unit: "ppb", trend: "down", delta: "-4%", tone: "green", icon: Leaf },
-  { key: "o3", label: "O3", value: 62, unit: "ppb", trend: "up", delta: "+5%", tone: "yellow", icon: Sun },
+type PollutantKey = "pm25" | "pm10" | "co" | "no2" | "so2" | "o3"
+
+type PollutantMeta = {
+  key: PollutantKey
+  label: string
+  unit: string
+  tone: "green" | "yellow" | "orange" | "red" | "blue"
+  icon: React.ComponentType<{ className?: string }>
+}
+
+type PollutantValues = Record<PollutantKey, number>
+
+const pollutantMeta: PollutantMeta[] = [
+  { key: "pm25", label: "PM2.5", unit: "ug/m3", tone: "red", icon: Factory },
+  { key: "pm10", label: "PM10", unit: "ug/m3", tone: "orange", icon: Car },
+  { key: "co", label: "CO", unit: "ppm", tone: "yellow", icon: Wind },
+  { key: "no2", label: "NO2", unit: "ppb", tone: "orange", icon: Navigation },
+  { key: "so2", label: "SO2", unit: "ppb", tone: "green", icon: Leaf },
+  { key: "o3", label: "O3", unit: "ppb", tone: "yellow", icon: Sun },
 ]
+
+const defaultPollutants: Record<PollutantKey, number> = {
+  pm25: 85,
+  pm10: 120,
+  co: 2.4,
+  no2: 46,
+  so2: 18,
+  o3: 62,
+}
+
+const POLLUTANT_DAY_SNAPSHOT_STORAGE_KEY = "envirosense-pollutant-daily-by-city-v1"
+
+type PollutantSnapshotEntry = {
+  date: string
+  values: PollutantValues
+}
+
+type PollutantSnapshotStore = Record<string, PollutantSnapshotEntry>
+
+function getLocalDateKey(offsetDays = 0) {
+  const date = new Date()
+  date.setDate(date.getDate() + offsetDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function normalizeCityKey(city: string) {
+  return city.trim().toLowerCase()
+}
+
+function readPollutantSnapshotStore(): PollutantSnapshotStore {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(POLLUTANT_DAY_SNAPSHOT_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? (parsed as PollutantSnapshotStore) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writePollutantSnapshotStore(store: PollutantSnapshotStore) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(POLLUTANT_DAY_SNAPSHOT_STORAGE_KEY, JSON.stringify(store))
+  } catch {
+    // Ignore storage failures (private mode/quota), UI will still show live values.
+  }
+}
 
 const hourlyAqi = [
   { time: "06:00", aqi: 82 },
@@ -190,23 +257,330 @@ function SkeletonCard() {
   return <div className="h-24 animate-pulse rounded-2xl bg-white/50 dark:bg-white/10" />
 }
 
+function toTitleCase(value: string) {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ")
+}
+
+type HealthGuidance = {
+  priorityLabel: string
+  priorityClasses: string
+  priorityNote: string
+  cards: Array<{ label: string; title: string; description: string }>
+}
+
+function getAqiHealthGuidance(aqi: number): HealthGuidance {
+  if (aqi <= 50) {
+    return {
+      priorityLabel: "Low",
+      priorityClasses: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+      priorityNote: "Air quality is supportive for most outdoor plans.",
+      cards: [
+        {
+          label: "Protection",
+          title: "Light protection is enough",
+          description: "A basic mask is optional unless near heavy traffic or construction areas.",
+        },
+        {
+          label: "Activity",
+          title: "Outdoor workouts are safe",
+          description: "Normal outdoor activity is generally fine for most people.",
+        },
+        {
+          label: "Indoor Air",
+          title: "Natural ventilation is okay",
+          description: "Keep windows open for fresh air if local traffic is low.",
+        },
+      ],
+    }
+  }
+
+  if (aqi <= 100) {
+    return {
+      priorityLabel: "Moderate",
+      priorityClasses: "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300",
+      priorityNote: "Sensitive groups should reduce prolonged outdoor exposure.",
+      cards: [
+        {
+          label: "Protection",
+          title: "Carry a mask outdoors",
+          description: "Sensitive people should use a good-quality mask during longer outdoor exposure.",
+        },
+        {
+          label: "Activity",
+          title: "Reduce intense outdoor sessions",
+          description: "Prefer moderate exercise and take breaks away from busy roads.",
+        },
+        {
+          label: "Indoor Air",
+          title: "Limit dusty air entry",
+          description: "Use fans or purifier mode when traffic pollution rises.",
+        },
+      ],
+    }
+  }
+
+  if (aqi <= 150) {
+    return {
+      priorityLabel: "High",
+      priorityClasses: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300",
+      priorityNote: "Reduce outdoor exposure and use protection during busy hours.",
+      cards: [
+        {
+          label: "Protection",
+          title: "Wear an N95 mask",
+          description: "Use an N95 or equivalent, especially near traffic corridors and crowded streets.",
+        },
+        {
+          label: "Activity",
+          title: "Limit outdoor workouts",
+          description: "Choose early morning windows or move workouts indoors.",
+        },
+        {
+          label: "Indoor Air",
+          title: "Run air purifier",
+          description: "Keep windows closed during peak AQI hours and use purifier filtration.",
+        },
+      ],
+    }
+  }
+
+  if (aqi <= 200) {
+    return {
+      priorityLabel: "Very High",
+      priorityClasses: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+      priorityNote: "Health risk is elevated. Prioritize indoor safety and filtration.",
+      cards: [
+        {
+          label: "Protection",
+          title: "Strict mask use outdoors",
+          description: "Use a well-fitted N95/P100 mask for any necessary outdoor exposure.",
+        },
+        {
+          label: "Activity",
+          title: "Avoid outdoor exertion",
+          description: "Postpone running, cycling, and prolonged outdoor activity.",
+        },
+        {
+          label: "Indoor Air",
+          title: "Seal indoor environment",
+          description: "Close windows and run purifier at higher speed during pollution spikes.",
+        },
+      ],
+    }
+  }
+
+  return {
+    priorityLabel: "Critical",
+    priorityClasses: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+    priorityNote: "Severe conditions. Avoid outdoor exposure whenever possible.",
+    cards: [
+      {
+        label: "Protection",
+        title: "Avoid outdoor exposure",
+        description: "Stay indoors as much as possible and use high-grade masks if stepping out is unavoidable.",
+      },
+      {
+        label: "Activity",
+        title: "Suspend outdoor activity",
+        description: "Avoid all intense physical activity outside until AQI improves.",
+      },
+      {
+        label: "Indoor Air",
+        title: "Maximum indoor protection",
+        description: "Keep indoor air filtered continuously and reduce infiltration from outside air.",
+      },
+    ],
+  }
+}
+
 export function AirQualityDashboard() {
-  const city = "New Delhi, India"
+  const searchParams = useSearchParams()
+  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
+  const [city, setCity] = useState("New Delhi, India")
   const [isLoading, setIsLoading] = useState(false)
   const [showError, setShowError] = useState(false)
+  const [currentAqi, setCurrentAqi] = useState(132)
+  const [pollutantValues, setPollutantValues] = useState<PollutantValues>(defaultPollutants)
+  const [previousPollutantValues, setPreviousPollutantValues] = useState<Partial<PollutantValues> | null>(null)
+  const [weatherTemp, setWeatherTemp] = useState(29)
+  const [weatherCondition, setWeatherCondition] = useState("Hazy")
+  const [weatherHumidity, setWeatherHumidity] = useState(58)
+  const [weatherWindKmh, setWeatherWindKmh] = useState(12)
+  const [weatherUpdatedAt, setWeatherUpdatedAt] = useState<Date | null>(null)
+  const [timeNowMs, setTimeNowMs] = useState(Date.now())
 
-  const currentAqi = 132
-  const aqiCategory = "Unhealthy"
+  const aqiCategory = getAqiPointerLabel(currentAqi)
   const aqiPointerClass = getAqiPointerClasses(currentAqi)
   const aqiPointerGlow = getAqiPointerGlow(currentAqi)
   const aqiPointerLabel = getAqiPointerLabel(currentAqi)
+  const healthGuidance = useMemo(() => getAqiHealthGuidance(currentAqi), [currentAqi])
+  const healthCardMeta = {
+    Protection: {
+      Icon: ShieldCheck,
+      iconWrap: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+      actionChip: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+      actionText: "Do now",
+    },
+    Activity: {
+      Icon: Navigation,
+      iconWrap: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+      actionChip: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+      actionText: "Plan",
+    },
+    "Indoor Air": {
+      Icon: Wind,
+      iconWrap: "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300",
+      actionChip: "bg-cyan-50 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300",
+      actionText: "Home",
+    },
+  } as const
 
-  const handleRefresh = async () => {
+  const pollutants: Pollutant[] = useMemo(() => {
+    return pollutantMeta.map((item) => {
+      const value = pollutantValues[item.key]
+      const previous = previousPollutantValues?.[item.key]
+      if (typeof previous !== "number" || previous <= 0) {
+        return {
+          ...item,
+          value,
+          trend: "flat",
+          delta: "N/A",
+        }
+      }
+
+      const deltaRaw = ((value - previous) / previous) * 100
+      const deltaRounded = Math.round(deltaRaw)
+      const trend: Pollutant["trend"] = deltaRounded > 0 ? "up" : deltaRounded < 0 ? "down" : "flat"
+      const deltaLabel = deltaRounded > 0 ? `+${deltaRounded}%` : `${deltaRounded}%`
+
+      return {
+        ...item,
+        value,
+        trend,
+        delta: deltaLabel,
+      }
+    })
+  }, [pollutantValues, previousPollutantValues])
+
+  const weatherUpdatedLabel = useMemo(() => {
+    if (!weatherUpdatedAt) return "Updating..."
+    const elapsedMinutes = Math.max(0, Math.floor((timeNowMs - weatherUpdatedAt.getTime()) / 60000))
+    if (elapsedMinutes === 0) return "Updated just now"
+    return `Updated ${elapsedMinutes}m ago`
+  }, [timeNowMs, weatherUpdatedAt])
+
+  const handleRefresh = async (requestedCity?: string) => {
     setShowError(false)
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 900))
+    try {
+      const selectedCity = requestedCity ?? city
+      const fetchCity = selectedCity.split(",")[0].trim()
+      const data = await fetchAqiData(fetchCity)
+      if (typeof data?.aqi === "number") {
+        setCurrentAqi(data.aqi)
+      }
+      if (data?.city) {
+        setCity(data.city)
+      } else {
+        setCity(selectedCity)
+      }
+
+      try {
+        const weatherData = await fetchWeatherData(fetchCity)
+        if (typeof weatherData?.temp === "number") {
+          setWeatherTemp(Math.round(weatherData.temp))
+        }
+        if (typeof weatherData?.humidity === "number") {
+          setWeatherHumidity(Math.round(weatherData.humidity))
+        }
+        if (typeof weatherData?.windKmh === "number") {
+          setWeatherWindKmh(Math.round(weatherData.windKmh))
+        }
+        const conditionRaw = String(weatherData?.condition || weatherData?.description || "Hazy")
+        setWeatherCondition(toTitleCase(conditionRaw))
+        setWeatherUpdatedAt(new Date())
+      } catch {
+        // Keep previous weather values if weather service call fails.
+      }
+
+      const apiPollutants = data?.pollutants
+      if (apiPollutants) {
+        setPollutantValues((prev) => {
+          const nextValues: PollutantValues = {
+            pm25: typeof apiPollutants.pm25 === "number" ? apiPollutants.pm25 : prev.pm25,
+            pm10: typeof apiPollutants.pm10 === "number" ? apiPollutants.pm10 : prev.pm10,
+            co: typeof apiPollutants.co === "number" ? apiPollutants.co : prev.co,
+            no2: typeof apiPollutants.no2 === "number" ? apiPollutants.no2 : prev.no2,
+            so2: typeof apiPollutants.so2 === "number" ? apiPollutants.so2 : prev.so2,
+            o3: typeof apiPollutants.o3 === "number" ? apiPollutants.o3 : prev.o3,
+          }
+
+          const apiPrevious = data?.previousPollutants
+          const previousFromApi: Partial<PollutantValues> = {
+            pm25: typeof apiPrevious?.pm25 === "number" ? apiPrevious.pm25 : undefined,
+            pm10: typeof apiPrevious?.pm10 === "number" ? apiPrevious.pm10 : undefined,
+            co: typeof apiPrevious?.co === "number" ? apiPrevious.co : undefined,
+            no2: typeof apiPrevious?.no2 === "number" ? apiPrevious.no2 : undefined,
+            so2: typeof apiPrevious?.so2 === "number" ? apiPrevious.so2 : undefined,
+            o3: typeof apiPrevious?.o3 === "number" ? apiPrevious.o3 : undefined,
+          }
+          const hasApiBaseline = Object.values(previousFromApi).some((value) => typeof value === "number")
+
+          const snapshotStore = readPollutantSnapshotStore()
+          const cityKey = normalizeCityKey(fetchCity)
+          const todayKey = getLocalDateKey(0)
+          const yesterdayKey = getLocalDateKey(-1)
+          const existing = snapshotStore[cityKey]
+
+          if (hasApiBaseline) {
+            setPreviousPollutantValues(previousFromApi)
+          } else if (existing?.date === yesterdayKey) {
+            setPreviousPollutantValues(existing.values)
+          } else if (existing && existing.date !== todayKey) {
+            // Fall back to the latest older snapshot if exact yesterday data is unavailable.
+            setPreviousPollutantValues(existing.values)
+          } else {
+            setPreviousPollutantValues(null)
+          }
+
+          snapshotStore[cityKey] = {
+            date: todayKey,
+            values: nextValues,
+          }
+          writePollutantSnapshotStore(snapshotStore)
+
+          return nextValues
+        })
+      }
+    } catch {
+      setShowError(true)
+    }
     setIsLoading(false)
   }
+
+  useEffect(() => {
+    void handleRefresh(cityQuery)
+  }, [cityQuery])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void handleRefresh(cityQuery)
+    }, 120000)
+
+    return () => window.clearInterval(intervalId)
+  }, [cityQuery])
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setTimeNowMs(Date.now())
+    }, 60000)
+
+    return () => window.clearInterval(timerId)
+  }, [])
 
   return (
     <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
@@ -260,7 +634,7 @@ export function AirQualityDashboard() {
             </p>
             <button
               type="button"
-              onClick={handleRefresh}
+              onClick={() => void handleRefresh()}
               className="mt-4 w-full rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:bg-white/80 dark:bg-white/10 dark:text-white sm:w-auto"
             >
               {isLoading ? "Refreshing..." : "Refresh Data"}
@@ -308,7 +682,7 @@ export function AirQualityDashboard() {
       <div className="mb-6">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Pollutant Breakdown</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Real-time concentration metrics</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Real-time concentration metrics vs previous-day baseline</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
@@ -316,7 +690,7 @@ export function AirQualityDashboard() {
           ? Array.from({ length: 6 }).map((_, idx) => <SkeletonCard key={`pollutant-skeleton-${idx}`} />)
           : pollutants.map((item, index) => {
               const Icon = item.icon
-              const TrendIcon = item.trend === "up" ? TrendingUp : TrendingDown
+              const TrendIcon = item.trend === "up" ? TrendingUp : item.trend === "down" ? TrendingDown : Minus
 
               return (
                 <motion.article
@@ -335,7 +709,9 @@ export function AirQualityDashboard() {
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${
                         item.trend === "up"
                           ? "bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-300"
-                          : "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300"
+                          : item.trend === "down"
+                            ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-300"
                       }`}
                     >
                       <TrendIcon className="h-3.5 w-3.5" />
@@ -490,7 +866,7 @@ export function AirQualityDashboard() {
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Local atmospheric conditions</p>
             </div>
             <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-              Updated 5m ago
+              {weatherUpdatedLabel}
             </span>
           </div>
 
@@ -498,8 +874,8 @@ export function AirQualityDashboard() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Temp</p>
-                <p className="mt-1 text-3xl font-bold leading-none text-gray-800 dark:text-white sm:text-4xl">29<span className="ml-1 text-base align-top sm:text-lg">deg C</span></p>
-                <p className="mt-2 inline-flex rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300">Hazy</p>
+                <p className="mt-1 text-3xl font-bold leading-none text-gray-800 dark:text-white sm:text-4xl">{weatherTemp}<span className="ml-1 text-base align-top sm:text-lg">deg C</span></p>
+                <p className="mt-2 inline-flex rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300">{weatherCondition}</p>
               </div>
               <div className="rounded-2xl bg-white/70 p-3 shadow-sm dark:bg-white/10">
                 <Sun className="h-7 w-7 text-yellow-500" />
@@ -513,14 +889,14 @@ export function AirQualityDashboard() {
                 <Droplets className="h-4 w-4 text-blue-600 dark:text-blue-300" />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Humidity</p>
-              <p className="mt-1 text-base font-bold text-gray-800 dark:text-white">58%</p>
+              <p className="mt-1 text-base font-bold text-gray-800 dark:text-white">{weatherHumidity}%</p>
             </div>
             <div className="rounded-xl bg-white/70 p-3 dark:bg-white/10">
               <div className="mb-2 inline-flex rounded-lg bg-cyan-100 p-2 dark:bg-cyan-500/20">
                 <Wind className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Wind</p>
-              <p className="mt-1 text-base font-bold text-gray-800 dark:text-white">12 km/h</p>
+              <p className="mt-1 text-base font-bold text-gray-800 dark:text-white">{weatherWindKmh} km/h</p>
             </div>
           </div>
         </motion.article>
@@ -570,27 +946,50 @@ export function AirQualityDashboard() {
               </h3>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Personalized guidance for current AQI conditions</p>
             </div>
-            <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-300">Priority</span>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${healthGuidance.priorityClasses}`}>
+              {healthGuidance.priorityLabel}
+            </span>
+          </div>
+
+          <div className="mb-3 rounded-xl border border-white/30 bg-white/70 p-3 dark:border-white/10 dark:bg-white/10 sm:p-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-500/20 dark:text-slate-300">
+                AQI {currentAqi}
+              </span>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200">
+                {aqiCategory}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{healthGuidance.priorityNote}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/30 bg-white/70 p-3 dark:border-white/10 dark:bg-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Protection</p>
-              <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-white">Wear an N95 mask</p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Especially near traffic corridors and crowded streets.</p>
-            </div>
-
-            <div className="rounded-xl border border-white/30 bg-white/70 p-3 dark:border-white/10 dark:bg-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Activity</p>
-              <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-white">Limit outdoor workouts</p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Choose early morning or indoor sessions.</p>
-            </div>
-
-            <div className="rounded-xl border border-white/30 bg-white/70 p-3 dark:border-white/10 dark:bg-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Indoor Air</p>
-              <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-white">Run air purifier</p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Keep windows closed during peak AQI hours.</p>
-            </div>
+            {healthGuidance.cards.map((card) => (
+              (() => {
+                const meta = healthCardMeta[card.label as keyof typeof healthCardMeta]
+                const Icon = meta?.Icon ?? ShieldCheck
+                return (
+                  <div
+                    key={card.label}
+                    className="group rounded-xl border border-white/30 bg-white/70 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/80 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${meta?.iconWrap ?? "bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300"}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{card.label}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${meta?.actionChip ?? "bg-slate-50 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300"}`}>
+                        {meta?.actionText ?? "Action"}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-800 dark:text-white">{card.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{card.description}</p>
+                  </div>
+                )
+              })()
+            ))}
           </div>
         </motion.article>
       </div>

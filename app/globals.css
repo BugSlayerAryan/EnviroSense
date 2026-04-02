@@ -142,14 +142,13 @@
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 80px;
-    /* Ensure GPU acceleration */
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
+    overscroll-behavior-y: none;
   }
 
   html,
   body {
     height: 100%;
+    overscroll-behavior-y: none;
   }
 
   body {
@@ -161,13 +160,22 @@
     font-kerning: auto;
   }
 
+  .dashboard-scroll {
+    scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
   /* Smooth transitions globally */
   button,
   a,
   input,
   textarea,
   select {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 0.2s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* Better focus states */
@@ -198,6 +206,20 @@
 }
 
 @layer utilities {
+  .page-transition-layer {
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+    transform-origin: 50% 50%;
+    isolation: isolate;
+  }
+
+  .page-transition-content {
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+  }
+
   .glass-card {
     @apply relative overflow-hidden rounded-2xl border border-white/40 bg-white/60 backdrop-blur-xl ring-1 ring-white/30 shadow-lg dark:bg-white/10 dark:border-white/10 dark:ring-white/10;
   }
@@ -267,10 +289,8 @@
   }
 
   .dashboard-scroll {
-    /* GPU acceleration & containment for smooth scroll */
-    will-change: scroll-position;
-    contain: paint layout;
-    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
   }
 
   .dashboard-scroll::-webkit-scrollbar {
@@ -309,7 +329,9 @@
   [role="button"] {
     position: relative;
     overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 0.3s;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   button:active,

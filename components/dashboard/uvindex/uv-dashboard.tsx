@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { UvAlertCard } from "@/components/dashboard/uvindex/uv-alert-card"
 import { UvExposureCard } from "@/components/dashboard/uvindex/uv-exposure-card"
@@ -9,6 +9,8 @@ import { UvHourlyChart } from "@/components/dashboard/uvindex/uv-hourly-chart"
 import { UvRecommendations } from "@/components/dashboard/uvindex/uv-recommendations"
 import { UvWeeklyForecast } from "@/components/dashboard/uvindex/uv-weekly-forecast"
 import type { DailyUvPoint, HourlyUvPoint } from "@/components/dashboard/uvindex/utils"
+import { fetchUvData } from "@/api/api"
+import { useSearchParams } from "next/navigation"
 
 const hourlyUvData: HourlyUvPoint[] = [
   { time: "07:00", hour24: 7, uv: 0.8 },
@@ -46,11 +48,15 @@ function DashboardSkeleton() {
 }
 
 export function UvDashboard() {
+  const searchParams = useSearchParams()
+  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [skinType, setSkinType] = useState("Type III")
-
-  const currentUv = 9.7
+  const [currentUv, setCurrentUv] = useState(9.7)
+  const [location, setLocation] = useState("New Delhi, India")
+  const [hourlyData, setHourlyData] = useState<HourlyUvPoint[]>(hourlyUvData)
+  const [weeklyData, setWeeklyData] = useState<DailyUvPoint[]>(weeklyUvData)
 
   const nowLabel = useMemo(() => {
     return new Date().toLocaleString("en-IN", {
@@ -62,12 +68,43 @@ export function UvDashboard() {
     })
   }, [])
 
-  const refreshData = async () => {
+  const refreshData = async (requestedCity?: string) => {
     setError(null)
     setLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 900))
+    try {
+      const selectedCity = requestedCity ?? location
+      const data = await fetchUvData(selectedCity)
+      if (typeof data?.currentUv === "number") {
+        setCurrentUv(data.currentUv)
+      }
+      if (Array.isArray(data?.hourly) && data.hourly.length > 0) {
+        setHourlyData(data.hourly)
+      }
+      if (Array.isArray(data?.weekly) && data.weekly.length > 0) {
+        setWeeklyData(data.weekly)
+      }
+      if (data?.location) {
+        setLocation(data.location)
+      } else {
+        setLocation(selectedCity)
+      }
+    } catch {
+      setError("Unable to fetch UV index data.")
+    }
     setLoading(false)
   }
+
+  useEffect(() => {
+    void refreshData(cityQuery)
+  }, [cityQuery])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void refreshData(cityQuery)
+    }, 180000)
+
+    return () => window.clearInterval(intervalId)
+  }, [cityQuery])
 
   return (
     <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
@@ -76,7 +113,7 @@ export function UvDashboard() {
           <p className="font-semibold">{error}</p>
           <button
             type="button"
-            onClick={refreshData}
+            onClick={() => void refreshData()}
             className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
           >
             Retry
@@ -88,9 +125,9 @@ export function UvDashboard() {
         <DashboardSkeleton />
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-          <UvHero uvValue={currentUv} location="New Delhi, India" currentTime={nowLabel} />
-          <UvHourlyChart data={hourlyUvData} currentHour={new Date().getHours()} />
-          <UvWeeklyForecast data={weeklyUvData} />
+          <UvHero uvValue={currentUv} location={location} currentTime={nowLabel} />
+          <UvHourlyChart data={hourlyData} currentHour={new Date().getHours()} />
+          <UvWeeklyForecast data={weeklyData} />
 
           <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <UvRecommendations uvValue={currentUv} />

@@ -8,6 +8,8 @@ import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 
+export const dynamic = 'force-dynamic'
+
 const STORAGE_KEY = "enviromonitor.savedCities"
 
 function normalizeCity(value: string) {

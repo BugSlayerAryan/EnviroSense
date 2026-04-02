@@ -44,16 +44,35 @@ export function getUvHealthMessage(value: number): string {
 }
 
 export function getProtectionTips(value: number): ProtectionTip[] {
+  const uvText = value.toFixed(1)
   const tips: ProtectionTip[] = [
-    { title: "Apply Sunscreen", description: "Use broad-spectrum SPF 30+ and reapply every 2 hours.", icon: Shield },
-    { title: "Wear Sunglasses", description: "Use UV-protective lenses to reduce eye strain and risk.", icon: Glasses },
-    { title: "Protective Clothing", description: "Prefer hats, long sleeves, and breathable UV-safe fabrics.", icon: Shirt },
+    {
+      title: "Apply Sunscreen",
+      description: `Current UV ${uvText}. Use broad-spectrum SPF 30+ and reapply every 2 hours.`,
+      icon: Shield,
+    },
+    {
+      title: "Wear Sunglasses",
+      description: "Use UV-protective lenses to reduce eye strain and risk.",
+      icon: Glasses,
+    },
+    {
+      title: "Protective Clothing",
+      description: "Prefer hats, long sleeves, and breathable UV-safe fabrics.",
+      icon: Shirt,
+    },
   ]
 
-  if (value >= 8) {
-    tips.push({ title: "Avoid Peak Sun", description: "Minimize outdoor exposure between 11 AM and 3 PM.", icon: AlertTriangle })
+  if (value <= 2) {
+    tips.push({ title: "Low UV Window", description: "Protection is still recommended, but risk is currently low.", icon: Sun })
+  } else if (value <= 5) {
+    tips.push({ title: "Midday Caution", description: "Try to limit direct sun around noon and early afternoon.", icon: Sun })
+  } else if (value <= 7) {
+    tips.push({ title: "Seek Shade", description: "Take shade breaks between 11 AM and 3 PM.", icon: AlertTriangle })
+  } else if (value <= 10) {
+    tips.push({ title: "High UV Alert", description: "Use shade, hat, and sunscreen before heading outdoors.", icon: AlertTriangle })
   } else {
-    tips.push({ title: "Plan Smartly", description: "Schedule outdoor activities in early morning or evening.", icon: Sun })
+    tips.push({ title: "Extreme UV Alert", description: "Avoid direct sun between 11 AM and 3 PM unless essential.", icon: AlertTriangle })
   }
 
   return tips
@@ -70,6 +89,9 @@ export function getExposureMinutes(value: number, skinType: string): number {
   }
 
   const baseline = baselineByType[skinType] ?? 40
+  if (value <= 0.3) {
+    return 240
+  }
   const adjusted = Math.max(8, Math.round((baseline / Math.max(value, 1)) * 3.6))
   return adjusted
 }

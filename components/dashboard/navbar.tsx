@@ -1,67 +1,237 @@
 "use client"
 
-import { Moon, Search } from "lucide-react"
+import { LocateFixed, Moon, RefreshCw, Search, Sun, UserRound } from "lucide-react"
 import { motion } from "framer-motion"
-import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { Suspense } from "react"
 import Image from "next/image"
-import { Sun } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { fetchWeatherData, reverseGeocodeCity } from "@/api/api"
+import { useTheme } from "next-themes"
+
+type SearchBarProps = {
+  value: string
+  onChange: (value: string) => void
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>
+  isDetectingLocation: boolean
+  onUseCurrentLocation: () => void
+}
+
+type ActionButtonsProps = {
+  mounted: boolean
+  isDark: boolean
+  onToggleTheme: () => void
+}
+
+function SearchBar({ value, onChange, onSubmit, isDetectingLocation, onUseCurrentLocation }: SearchBarProps) {
+  return (
+    <motion.form
+      onSubmit={onSubmit}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="group relative mx-auto w-full max-w-150 min-w-0 flex-1 sm:min-w-70"
+    >
+      <div className="flex h-11 items-center rounded-xl border border-gray-200/80 bg-gray-100 px-4 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-all duration-200 ease-out group-hover:bg-gray-200/80 focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-400/60 dark:border-white/15 dark:bg-white/10 dark:group-hover:bg-white/15 dark:focus-within:bg-white/15">
+        <Search className="h-4.5 w-4.5 shrink-0 text-gray-500 dark:text-gray-300" />
+        <input
+          type="text"
+          placeholder="Search city or location"
+          className="ml-2.5 h-full w-full bg-transparent pr-2 text-sm text-gray-800 outline-none placeholder:truncate placeholder:text-gray-500 dark:text-white dark:placeholder:text-gray-400"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label="Search location"
+        />
+
+        <button
+          type="button"
+          onClick={onUseCurrentLocation}
+          title="Use current location"
+          aria-label="Use current location"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-white/90 text-gray-700 transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
+        >
+          {isDetectingLocation ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </motion.form>
+  )
+}
+
+function ActionButtons({ mounted, isDark, onToggleTheme }: ActionButtonsProps) {
+  const actionButtonClass =
+    "inline-flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200/80 bg-white/90 text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white hover:shadow-[0_10px_20px_-14px_rgba(15,23,42,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
+
+  return (
+    <motion.div
+      className="flex shrink-0 items-center gap-2 sm:gap-3"
+      initial={{ opacity: 0, x: 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25, delay: 0.06 }}
+    >
+      {mounted ? (
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          className={actionButtonClass}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        title="Profile"
+        aria-label="Profile"
+        className="group relative inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-gray-200/80 bg-white/90 text-sm font-medium text-gray-700 shadow-[0_2px_6px_-4px_rgba(15,23,42,0.18)] transition-all duration-200 ease-out hover:-translate-y-px hover:border-blue-200/90 hover:bg-white hover:shadow-[0_14px_26px_-16px_rgba(37,99,235,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:border-blue-400/30 dark:hover:bg-white/15"
+        aria-haspopup="menu"
+      >
+        <span className="pointer-events-none absolute inset-0 bg-linear-to-br from-blue-100/0 via-blue-100/0 to-blue-200/0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:from-blue-500/0 dark:via-blue-500/0 dark:to-blue-500/10" />
+        <span className="relative inline-flex h-7.5 w-7.5 items-center justify-center overflow-hidden rounded-[10px] bg-linear-to-br from-blue-600 via-blue-500 to-cyan-500 text-white shadow-[0_8px_16px_-10px_rgba(37,99,235,0.95)] transition-transform duration-200 group-hover:scale-[1.03]">
+          <UserRound className="h-4.5 w-4.5" />
+          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-1 ring-white dark:ring-slate-900">
+            <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/70" />
+          </span>
+        </span>
+      </button>
+    </motion.div>
+  )
+}
+
 
 export function Navbar() {
+  return (
+    <Suspense fallback={<NavbarFallback />}>
+      <NavbarClient />
+    </Suspense>
+  )
+}
+
+function NavbarFallback() {
+  return (
+    <div className="flex h-16 items-center gap-3 border-b border-white/30 px-4 dark:border-white/10">
+      <div className="h-12 w-12 animate-pulse rounded-lg bg-white/20 dark:bg-white/10" />
+      <div className="flex-1">
+        <div className="h-11 animate-pulse rounded-xl bg-white/20 dark:bg-white/10" />
+      </div>
+      <div className="flex gap-3">
+        <div className="h-11 w-11 animate-pulse rounded-xl bg-white/20 dark:bg-white/10" />
+        <div className="h-11 w-11 animate-pulse rounded-xl bg-white/20 dark:bg-white/10" />
+      </div>
+    </div>
+  )
+}
+
+function NavbarClient() {
   const { theme, setTheme } = useTheme()
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+  const [locationError, setLocationError] = useState("")
+  const [searchValue, setSearchValue] = useState(searchParams.get("city") ?? "New Delhi, India")
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const isDark = theme === "dark"
+  useEffect(() => {
+    setSearchValue(searchParams.get("city") ?? "New Delhi, India")
+  }, [searchParams])
+
+  const applyCityQuery = (city: string) => {
+    const trimmed = city.trim()
+    if (!trimmed) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("city", trimmed)
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
+  const handleSearchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = searchValue.trim()
+    if (!trimmed) return
+    setLocationError("")
+
+    try {
+      await fetchWeatherData(trimmed)
+      applyCityQuery(trimmed)
+    } catch (error) {
+      if (error instanceof Error && error.message === "CITY_NOT_FOUND") {
+        router.push(`/city-not-found?city=${encodeURIComponent(trimmed)}`)
+        return
+      }
+
+      applyCityQuery(trimmed)
+    }
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported in this browser.")
+      return
+    }
+
+    setLocationError("")
+    setIsDetectingLocation(true)
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords
+          const reverse = await reverseGeocodeCity(latitude, longitude)
+          const nextCity = reverse?.city || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`
+          setSearchValue(nextCity)
+          applyCityQuery(nextCity)
+        } catch {
+          setLocationError("Unable to resolve your location. Please try again.")
+        } finally {
+          setIsDetectingLocation(false)
+        }
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError("Location access denied. Enable permission to use live location.")
+        } else {
+          setLocationError("Could not fetch your current location.")
+        }
+        setIsDetectingLocation(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   return (
-    <header className="relative flex items-center justify-between gap-2 border-b border-white/20 bg-white/50 px-3 py-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 sm:gap-3 sm:px-4 sm:py-3 lg:gap-4 lg:px-6 lg:py-3.5">
-      <div className="flex shrink-0 items-center lg:hidden">
-        <Image src="/logo.png" alt="EnviroSense" width={44} height={44} className="h-10 w-10 object-contain sm:h-11 sm:w-11" />
-      </div>
+    <header className="relative border-b border-white/20 bg-white/60 px-3 py-2.5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 sm:px-4 lg:px-6">
+      <div className="flex min-h-12 items-center gap-2 sm:gap-3 lg:gap-4">
+        <div className="flex h-12 min-w-12 shrink-0 items-center justify-center lg:hidden">
+          <Image src="/logo.png" alt="EnviroSense" width={52} height={52} className="h-12 w-12 shrink-0 object-contain" />
+        </div>
 
-      <div className="hidden lg:block w-1" />
-
-      <motion.div
-        className="min-w-0 flex-1 max-w-2xl"
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4 }}
-      >
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 dark:text-gray-400 sm:left-3.5 sm:h-4 sm:w-4" />
-          <input
-            type="text"
-            placeholder="Search location..."
-            className="w-full rounded-lg border border-white/40 bg-white/70 py-1.5 pl-8 pr-2 text-xs text-gray-800 placeholder:text-gray-500 shadow-sm transition-all focus:border-white/60 focus:bg-white/80 focus:outline-none dark:border-white/15 dark:bg-white/10 dark:text-white dark:placeholder:text-gray-500 dark:focus:bg-white/15 sm:py-2 sm:pl-10 sm:pr-4 sm:text-sm"
+        <div className="flex min-w-0 flex-1 items-center justify-center">
+          <SearchBar
+            value={searchValue}
+            onChange={setSearchValue}
+            onSubmit={handleSearchSubmit}
+            isDetectingLocation={isDetectingLocation}
+            onUseCurrentLocation={handleUseCurrentLocation}
           />
         </div>
-      </motion.div>
 
-      <motion.div
-        className="flex shrink-0 items-center gap-1.5"
-        initial={{ opacity: 0, x: 12 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
-        {mounted && (
-          <button
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/60 p-1.5 text-gray-700 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/15 sm:h-9 sm:w-9"
-          >
-            {isDark ? <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-          </button>
-        )}
+        <ActionButtons
+          mounted={mounted}
+          isDark={theme === "dark"}
+          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        />
+      </div>
 
-        <button aria-label="Profile" title="Profile" className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 text-[11px] font-bold text-white shadow-sm transition-all hover:shadow-md active:scale-95 sm:h-9 sm:w-9 sm:text-xs">
-          AR
-        </button>
-      </motion.div>
+      {locationError ? (
+        <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300" role="status" aria-live="polite">
+          {locationError}
+        </p>
+      ) : null}
     </header>
   )
 }

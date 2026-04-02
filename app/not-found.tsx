@@ -1,5 +1,7 @@
 import Link from "next/link"
 
+export const dynamic = 'force-dynamic'
+
 export default function NotFound() {
   return (
     <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-6">

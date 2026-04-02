@@ -9,6 +9,21 @@ import { UvCard } from "@/components/dashboard/uv-card"
 import { AqiTrendChart } from "@/components/dashboard/aqi-trend-chart"
 import { TemperatureTrendChart } from "@/components/dashboard/temperature-trend-chart"
 import { HealthTipCard } from "@/components/dashboard/health-tip-card"
+import { Suspense } from "react"
+
+export const dynamic = 'force-dynamic'
+
+function EnvironmentScoreWrapper() {
+  return (
+    <Suspense fallback={<div className="glass-card h-96 animate-pulse" />}>
+      <EnvironmentScoreWithParams />
+    </Suspense>
+  )
+}
+
+function EnvironmentScoreWithParams() {
+  return <EnvironmentScore />
+}
 
 export default function HomePage() {
   return (
@@ -26,8 +41,8 @@ export default function HomePage() {
           <section className="dashboard-scroll flex-1 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
             {/* Hero Card: Environment Score */}
             <div className="mb-7 lg:mb-8">
-                <EnvironmentScore />
-              </div>
+              <EnvironmentScoreWrapper />
+            </div>
 
               {/* Primary metrics grid (3 columns) */}
               <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">

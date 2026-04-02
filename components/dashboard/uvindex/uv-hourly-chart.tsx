@@ -11,6 +11,10 @@ type UvHourlyChartProps = {
 }
 
 export function UvHourlyChart({ data, currentHour }: UvHourlyChartProps) {
+  if (!data || data.length === 0) {
+    return null
+  }
+
   const peakPoint = data.reduce((max, curr) => (curr.uv > max.uv ? curr : max), data[0])
   const currentPoint = data.find((point) => point.hour24 === currentHour)
   const averageUv = data.reduce((sum, point) => sum + point.uv, 0) / data.length
@@ -86,7 +90,7 @@ export function UvHourlyChart({ data, currentHour }: UvHourlyChartProps) {
                 fontSize: "12px",
               }}
             />
-            <ReferenceLine x={currentHour} stroke="#0f172a" strokeDasharray="3 3" strokeOpacity={0.45} />
+            {currentPoint ? <ReferenceLine x={currentHour} stroke="#0f172a" strokeDasharray="3 3" strokeOpacity={0.45} /> : null}
             <Area type="monotone" dataKey="uv" fill="#93c5fd" fillOpacity={0.35} stroke="none" />
             <Line type="monotone" dataKey="uv" stroke="#2563eb" strokeWidth={3} dot={{ r: 2.5 }} activeDot={{ r: 5 }} />
           </AreaChart>
