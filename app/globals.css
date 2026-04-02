@@ -206,6 +206,39 @@
 }
 
 @layer utilities {
+  @keyframes skeleton-shimmer {
+    0% {
+      transform: translateX(-120%);
+    }
+
+    100% {
+      transform: translateX(120%);
+    }
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(226, 232, 240, 0.95), rgba(203, 213, 225, 0.9));
+  }
+
+  .dark .skeleton-shimmer {
+    background: linear-gradient(180deg, rgba(51, 65, 85, 0.9), rgba(30, 41, 59, 0.88));
+  }
+
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    transform: translateX(-120%);
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  .dark .skeleton-shimmer::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  }
+
   .page-transition-layer {
     will-change: transform, opacity;
     transform: translate3d(0, 0, 0);

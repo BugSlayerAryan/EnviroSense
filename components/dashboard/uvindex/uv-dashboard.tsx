@@ -11,6 +11,7 @@ import { UvWeeklyForecast } from "@/components/dashboard/uvindex/uv-weekly-forec
 import type { DailyUvPoint, HourlyUvPoint } from "@/components/dashboard/uvindex/utils"
 import { fetchUvData } from "@/api/api"
 import { useSearchParams } from "next/navigation"
+import { UvDashboardSkeleton } from "@/components/dashboard/loading-states"
 
 const hourlyUvData: HourlyUvPoint[] = [
   { time: "07:00", hour24: 7, uv: 0.8 },
@@ -50,7 +51,7 @@ function DashboardSkeleton() {
 export function UvDashboard() {
   const searchParams = useSearchParams()
   const cityQuery = searchParams.get("city") ?? "New Delhi, India"
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [skinType, setSkinType] = useState("Type III")
   const [currentUv, setCurrentUv] = useState(9.7)
@@ -105,6 +106,14 @@ export function UvDashboard() {
 
     return () => window.clearInterval(intervalId)
   }, [cityQuery])
+
+  if (loading) {
+    return (
+      <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
+        <UvDashboardSkeleton />
+      </section>
+    )
+  }
 
   return (
     <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">

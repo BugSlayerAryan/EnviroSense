@@ -1,16 +1,25 @@
 "use client"
 
-import { ShieldCheck, TrendingUp, MapPin, AlertCircle, Loader2 } from "lucide-react"
+import { ShieldCheck, TrendingUp, MapPin, AlertCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import { SemiCircleGauge } from "./gauge"
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { calculateEnvironmentScore, type EnvironmentalData, type ScoreResult } from "@/lib/environment-score-calculator"
+import { EnvironmentScoreSkeleton } from "@/components/dashboard/loading-states"
 
 interface EnvironmentScoreProps {
   city?: string
 }
 
-export function EnvironmentScore({ city = "New Delhi" }: EnvironmentScoreProps) {
+function formatCityLabel(city: string) {
+  return city.trim() || "Current location"
+}
+
+export function EnvironmentScore({ city }: EnvironmentScoreProps) {
+  const searchParams = useSearchParams()
+  const activeCity = city ?? searchParams.get("city") ?? "Current location"
+  const cityLabel = formatCityLabel(activeCity)
 
   const [data, setData] = useState<EnvironmentalData | null>(null)
   const [score, setScore] = useState<ScoreResult | null>(null)
@@ -25,15 +34,15 @@ export function EnvironmentScore({ city = "New Delhi" }: EnvironmentScoreProps) 
         setError(null)
 
         // Fetch AQI data
-        const aqiRes = await fetch(`/api/live/aqi?city=${encodeURIComponent(city)}`)
+        const aqiRes = await fetch(`/api/live/aqi?city=${encodeURIComponent(activeCity)}`)
         const aqiData = aqiRes.ok ? await aqiRes.json() : {}
 
         // Fetch weather data
-        const weatherRes = await fetch(`/api/live/weather?city=${encodeURIComponent(city)}`)
+        const weatherRes = await fetch(`/api/live/weather?city=${encodeURIComponent(activeCity)}`)
         const weatherData = weatherRes.ok ? await weatherRes.json() : {}
 
         // Fetch UV data
-        const uvRes = await fetch(`/api/live/uv?city=${encodeURIComponent(city)}`)
+        const uvRes = await fetch(`/api/live/uv?city=${encodeURIComponent(activeCity)}`)
         const uvData = uvRes.ok ? await uvRes.json() : {}
 
         // Extract relevant fields
@@ -72,18 +81,10 @@ export function EnvironmentScore({ city = "New Delhi" }: EnvironmentScoreProps) 
     }
 
     fetchData()
-  }, [city])
+  }, [activeCity])
 
   if (loading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card flex items-center justify-center p-12"
-      >
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </motion.div>
-    )
+    return <EnvironmentScoreSkeleton />
   }
 
   if (!score) {
@@ -131,7 +132,7 @@ export function EnvironmentScore({ city = "New Delhi" }: EnvironmentScoreProps) 
               <h2 className="text-lg font-bold text-gray-900 dark:text-white sm:text-xl">Environment Score</h2>
               <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
                 <MapPin className="h-3.5 w-3.5" />
-                <span>{city}</span>
+                <span>{cityLabel}</span>
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Updated just now</p>
             </div>
@@ -253,8 +254,6 @@ export function EnvironmentScore({ city = "New Delhi" }: EnvironmentScoreProps) 
               insight={`AQI: ${data?.aqi ?? "N/A"} | UV: ${data?.uv?.toFixed(1) ?? "N/A"}`}
             />
           </div>
-
-
         </div>
       </div>
     </motion.div>

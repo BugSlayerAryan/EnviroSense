@@ -19,7 +19,7 @@ function WeeklyForecastSkeleton() {
       {Array.from({ length: 7 }).map((_, idx) => (
         <div
           key={`weekly-skeleton-${idx}`}
-          className="h-18 animate-pulse rounded-2xl border border-slate-200/80 bg-white/75 dark:border-slate-700 dark:bg-slate-800/65"
+          className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.06)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/65 dark:ring-slate-700/40"
         />
       ))}
     </div>

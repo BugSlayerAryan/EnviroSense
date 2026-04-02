@@ -1,4 +1,4 @@
-import { Loader2, LocateFixed, Search } from "lucide-react"
+import { LocateFixed, Search } from "lucide-react"
 
 interface MapControlsProps {
   searchValue: string
@@ -50,7 +50,7 @@ export function MapControls({
           disabled={isLocating}
           className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-emerald-700/70 dark:bg-emerald-900/30 dark:text-emerald-200"
         >
-          {isLocating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
+          {isLocating ? <span className="inline-block h-3.5 w-3.5 rounded-full bg-emerald-500/70 animate-pulse dark:bg-emerald-300/70" /> : <LocateFixed className="h-3.5 w-3.5" />}
           {isLocating ? "Locating..." : "Use Current Location"}
         </button>
       </div>

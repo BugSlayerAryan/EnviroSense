@@ -1,18 +1,32 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useTheme } from "next-themes"
+import { useSearchParams } from "next/navigation"
+import { fetchWeatherData } from "@/api/api"
+import { ChartSkeleton } from "@/components/dashboard/loading-states"
 
-const tempData = [
-  { day: "Apr 6", temp: 26 },
-  { day: "Apr 7", temp: 28 },
-  { day: "Apr 8", temp: 27 },
-  { day: "Apr 9", temp: 30 },
-  { day: "Apr 10", temp: 34 },
-  { day: "Apr 11", temp: 35 },
-  { day: "Apr 12", temp: 29 },
+type TemperatureTrendPoint = {
+  day: string
+  temp: number
+}
+
+const fallbackTempData: TemperatureTrendPoint[] = [
+  { day: "Today", temp: 29 },
+  { day: "Day 2", temp: 28 },
+  { day: "Day 3", temp: 27 },
+  { day: "Day 4", temp: 30 },
+  { day: "Day 5", temp: 34 },
+  { day: "Day 6", temp: 35 },
+  { day: "Day 7", temp: 29 },
 ]
+
+function formatTrendDate(dateInput: string | undefined, fallbackIndex: number) {
+  if (dateInput) return dateInput
+  return fallbackIndex === 0 ? "Today" : `Day ${fallbackIndex + 1}`
+}
 
 function TempTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
@@ -25,10 +39,53 @@ function TempTooltip({ active, payload }: any) {
 }
 
 export function TemperatureTrendChart() {
+  const searchParams = useSearchParams()
+  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const strokeGradient = isDark ? "url(#tempStrokeDark)" : "url(#tempStrokeLight)"
   const fillGradient = isDark ? "url(#tempFillDark)" : "url(#tempFillLight)"
+  const [data, setData] = useState<TemperatureTrendPoint[]>(fallbackTempData)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadTrend() {
+      setIsLoading(true)
+      try {
+        const weatherData = await fetchWeatherData(cityQuery)
+        const daily = Array.isArray(weatherData?.daily) ? weatherData.daily : []
+        const mapped = daily.slice(0, 7).map((item: any, index: number) => ({
+          day: formatTrendDate(item?.date ?? item?.day, index),
+          temp: Math.round(typeof item?.max === "number" ? item.max : typeof item?.current === "number" ? item.current : typeof item?.min === "number" ? item.min : 0),
+        }))
+
+        if (isMounted && mapped.length > 0) {
+          setData(mapped)
+        }
+      } catch {
+        if (isMounted) {
+          setData(fallbackTempData)
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadTrend()
+    return () => {
+      isMounted = false
+    }
+  }, [cityQuery])
+
+  const chartData = useMemo(() => data.slice(0, 7), [data])
+
+  if (isLoading) {
+    return <ChartSkeleton className="p-4 sm:p-5 md:p-6" />
+  }
 
   return (
     <motion.div
@@ -52,7 +109,7 @@ export function TemperatureTrendChart() {
 
       <div className="h-40 w-full sm:h-44 md:h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={tempData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
             <defs>
               <linearGradient id="tempStrokeLight" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#60a5fa" />

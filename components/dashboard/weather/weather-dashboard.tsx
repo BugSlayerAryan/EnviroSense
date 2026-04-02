@@ -31,12 +31,14 @@ import { fetchUvData, fetchWeatherData } from "@/api/api"
 import { WeeklyForecast } from "@/components/dashboard/weather/weekly-forecast"
 import type { WeeklyForecastDay } from "@/components/dashboard/weather/utils"
 import { useSearchParams } from "next/navigation"
+import { WeatherDashboardSkeleton } from "@/components/dashboard/loading-states"
 
 type HourlyForecast = {
   time: string
   temp: number
   icon: "sunny" | "cloudy" | "rain"
   rainChance: number
+  rainMm?: number
 }
 
 type WeatherDetail = {
@@ -47,14 +49,14 @@ type WeatherDetail = {
 }
 
 const fallbackHourlyForecast: HourlyForecast[] = [
-  { time: "Now", temp: 29, icon: "sunny", rainChance: 12 },
-  { time: "10 AM", temp: 31, icon: "sunny", rainChance: 8 },
-  { time: "11 AM", temp: 32, icon: "sunny", rainChance: 7 },
-  { time: "12 PM", temp: 33, icon: "cloudy", rainChance: 14 },
-  { time: "1 PM", temp: 34, icon: "cloudy", rainChance: 21 },
-  { time: "2 PM", temp: 34, icon: "rain", rainChance: 35 },
-  { time: "3 PM", temp: 33, icon: "rain", rainChance: 48 },
-  { time: "4 PM", temp: 32, icon: "cloudy", rainChance: 28 },
+  { time: "Now", temp: 29, icon: "sunny", rainChance: 12, rainMm: 0.0 },
+  { time: "10 AM", temp: 31, icon: "sunny", rainChance: 8, rainMm: 0.0 },
+  { time: "11 AM", temp: 32, icon: "sunny", rainChance: 7, rainMm: 0.0 },
+  { time: "12 PM", temp: 33, icon: "cloudy", rainChance: 14, rainMm: 0.5 },
+  { time: "1 PM", temp: 34, icon: "cloudy", rainChance: 21, rainMm: 1.2 },
+  { time: "2 PM", temp: 34, icon: "rain", rainChance: 35, rainMm: 3.5 },
+  { time: "3 PM", temp: 33, icon: "rain", rainChance: 48, rainMm: 5.8 },
+  { time: "4 PM", temp: 32, icon: "cloudy", rainChance: 28, rainMm: 2.1 },
 ]
 
 const fallbackWeeklyForecast: WeeklyForecastDay[] = [
@@ -65,15 +67,6 @@ const fallbackWeeklyForecast: WeeklyForecastDay[] = [
   { day: "Fri", icon: "partly", max: 33, min: 24, rain: 18 },
   { day: "Sat", icon: "rain", max: 30, min: 23, rain: 70 },
   { day: "Sun", icon: "cloud", max: 31, min: 24, rain: 28 },
-]
-
-const fallbackPrecipitationSeries = [
-  { hour: "06", intensity: 4, probability: 18 },
-  { hour: "09", intensity: 8, probability: 24 },
-  { hour: "12", intensity: 14, probability: 36 },
-  { hour: "15", intensity: 22, probability: 55 },
-  { hour: "18", intensity: 16, probability: 42 },
-  { hour: "21", intensity: 9, probability: 28 },
 ]
 
 function getConditionIcon(icon: HourlyForecast["icon"]) {
@@ -100,23 +93,29 @@ function LoadingCard() {
   return <div className="h-24 animate-pulse rounded-2xl bg-white/50 dark:bg-white/10" />
 }
 
+function getRainIntensityLabel(rainMm: number) {
+  if (rainMm >= 12) return "Heavy"
+  if (rainMm >= 4) return "Moderate"
+  return "Light"
+}
+
 function ChartTooltip({
   active,
   payload,
   label,
 }: {
   active?: boolean
-  payload?: Array<{ value: number; name?: string }>
+  payload?: Array<{ value: number; name?: string; payload?: { rainMm?: number; probability?: number } }>
   label?: string
 }) {
   if (!active || !payload?.length) return null
-  const intensity = payload.find((item) => item.name === "intensity")?.value ?? payload[0]?.value
-  const probability = payload.find((item) => item.name === "probability")?.value ?? payload[1]?.value
+  const rainMm = payload.find((item) => item.name === "rainMm")?.value ?? payload[0]?.payload?.rainMm
+  const probability = payload.find((item) => item.name === "probability")?.value ?? payload[0]?.payload?.probability
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 text-xs text-slate-700 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200">
-      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}:00</p>
-      <p className="mt-1 font-semibold">Intensity: {intensity}%</p>
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 font-semibold">Rain: {typeof rainMm === "number" ? rainMm.toFixed(1) : "0.0"} mm</p>
       {probability !== undefined ? <p className="text-[11px] text-sky-700 dark:text-sky-300">Probability: {probability}%</p> : null}
     </div>
   )
@@ -126,7 +125,7 @@ export function WeatherDashboard() {
   const searchParams = useSearchParams()
   const cityQuery = searchParams.get("city") ?? "New Delhi, India"
   const [location, setLocation] = useState("New Delhi, India")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [temperature, setTemperature] = useState(29)
   const [feelsLike, setFeelsLike] = useState(32)
@@ -147,14 +146,32 @@ export function WeatherDashboard() {
   const [moonPhaseLabel, setMoonPhaseLabel] = useState("Waxing Crescent")
   const [moonIllumination, setMoonIllumination] = useState(36)
 
+  const precipitationSeries = useMemo(
+    () => weeklyData.slice(0, 7).map((item) => {
+      const probability = Math.min(100, Math.max(0, Math.round(item.rain)))
+      return {
+        day: item.day,
+        probability,
+        rainMm: typeof item.rainMm === "number" ? item.rainMm : 0,
+      }
+    }),
+    [weeklyData],
+  )
+
+  const averageRainChance = useMemo(() => {
+    if (!precipitationSeries.length) return 0
+    const total = precipitationSeries.reduce((sum, item) => sum + item.probability, 0)
+    return Math.round(total / precipitationSeries.length)
+  }, [precipitationSeries])
+
   const conditionSnapshot = useMemo(
     () => [
       { label: "Humidity", value: `${humidity}%`, icon: Droplets, color: "text-sky-600 dark:text-sky-300" },
       { label: "Wind", value: `${windKmh} km/h`, icon: Wind, color: "text-cyan-600 dark:text-cyan-300" },
-      { label: "Rain", value: `${hourlyData[0]?.rainChance ?? 24}%`, icon: CloudRain, color: "text-blue-600 dark:text-blue-300" },
+      { label: "Rainfall", value: `${averageRainChance}%`, icon: CloudRain, color: "text-blue-600 dark:text-blue-300" },
       { label: "UV", value: `${uvIndex} High`, icon: Sun, color: "text-amber-600 dark:text-amber-300" },
     ],
-    [humidity, hourlyData, uvIndex, windKmh],
+    [averageRainChance, humidity, uvIndex, windKmh],
   )
 
   const weatherDetails = useMemo(
@@ -168,6 +185,24 @@ export function WeatherDashboard() {
     ],
     [dewPoint, humidity, pressure, uvIndex, visibilityKm, windKmh],
   )
+
+  const peakPrecipitation = useMemo(() => {
+    if (!precipitationSeries.length) {
+      return { day: "N/A", probability: 0, rainMm: 0 }
+    }
+
+    return precipitationSeries.reduce((peak, item) => {
+      if (item.probability > peak.probability) return item
+      return peak
+    }, precipitationSeries[0])
+  }, [precipitationSeries])
+
+  const forecastDayCount = precipitationSeries.length
+
+  const maxRainMm = useMemo(() => {
+    if (!precipitationSeries.length) return 1
+    return Math.max(1, ...precipitationSeries.map((item) => item.rainMm))
+  }, [precipitationSeries])
 
   const handleRefresh = async (requestedCity?: string) => {
     setHasError(false)
@@ -240,6 +275,14 @@ export function WeatherDashboard() {
   }, [cityQuery])
 
   const weatherUpdatedLabel = formatMinutesAgo(weatherUpdatedAt, nowMs)
+
+  if (isLoading) {
+    return (
+      <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
+        <WeatherDashboardSkeleton />
+      </section>
+    )
+  }
 
   return (
     <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
@@ -355,7 +398,7 @@ export function WeatherDashboard() {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">{item.time}</p>
                 <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-700/50">{getConditionIcon(item.icon)}</div>
                 <p className="mt-2 text-xl font-bold leading-none text-slate-900 dark:text-slate-50">{item.temp} deg</p>
-                <p className="mt-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">Rain {item.rainChance}%</p>
+                <p className="mt-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">Rain {item.rainChance}% | {typeof item.rainMm === "number" ? item.rainMm.toFixed(1) : "0.0"} mm</p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                   <motion.div
                     initial={{ width: 0 }}
@@ -371,6 +414,8 @@ export function WeatherDashboard() {
       </div>
 
       <WeeklyForecast
+        title={`${Math.max(1, weeklyData.length)}-Day Forecast`}
+        subtitle="Daily min/max temperatures and conditions from OpenWeather"
         data={weeklyData}
         loading={isLoading}
         error={hasError ? "Unable to load weekly forecast." : null}
@@ -428,25 +473,25 @@ export function WeatherDashboard() {
           <div className="relative z-10 mb-4 flex items-start justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">Precipitation</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-300">Rain probability and intensity</p>
+              <p className="text-xs text-slate-500 dark:text-slate-300">{forecastDayCount}-day rain probability and rainfall volume</p>
             </div>
             <div className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-300">
-              42% chance
+              {averageRainChance}% avg chance
             </div>
           </div>
 
           <div className="relative z-10 mb-3 grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Peak Hour</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">03:00 PM</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Peak Day</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{peakPrecipitation.day}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Max Chance</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">55%</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{peakPrecipitation.probability}%</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Intensity</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">Moderate</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{getRainIntensityLabel(peakPrecipitation.rainMm)}</p>
             </div>
           </div>
 
@@ -454,7 +499,7 @@ export function WeatherDashboard() {
             <div className="mb-2 flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-300">
               <span className="inline-flex items-center gap-1">
                 <span className="h-1.5 w-4 rounded-full bg-blue-500" />
-                Intensity
+                Rain (mm)
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="h-1.5 w-4 rounded-full bg-sky-300" />
@@ -462,13 +507,14 @@ export function WeatherDashboard() {
               </span>
             </div>
             <ResponsiveContainer width="100%" height="88%">
-              <LineChart data={fallbackPrecipitationSeries}>
+              <LineChart data={precipitationSeries}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" />
-                <XAxis dataKey="hour" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="day" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="chance" domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="rain" orientation="right" domain={[0, Math.ceil(maxRainMm)]} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="probability" fill="#7dd3fc" fillOpacity={0.24} stroke="none" />
-                <Line type="monotone" dataKey="intensity" stroke="#2563eb" strokeWidth={3} dot={{ r: 2.5 }} activeDot={{ r: 5 }} />
+                <Area yAxisId="chance" type="monotone" dataKey="probability" fill="#7dd3fc" fillOpacity={0.24} stroke="none" />
+                <Line yAxisId="rain" type="monotone" dataKey="rainMm" stroke="#2563eb" strokeWidth={3} dot={{ r: 2.5 }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

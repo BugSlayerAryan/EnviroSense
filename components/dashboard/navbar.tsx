@@ -50,7 +50,7 @@ function SearchBar({ value, onChange, onSubmit, isDetectingLocation, onUseCurren
           aria-label="Use current location"
           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-white/90 text-gray-700 transition-all duration-200 ease-out hover:-translate-y-px hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/50 dark:border-white/15 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
         >
-          {isDetectingLocation ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
+          {isDetectingLocation ? <span className="inline-block h-3.5 w-3.5 rounded-full bg-blue-500/70 animate-pulse dark:bg-blue-300/70" /> : <LocateFixed className="h-3.5 w-3.5" />}
         </button>
       </div>
     </motion.form>
@@ -135,6 +135,13 @@ function NavbarClient() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (searchParams.get("city")) return
+    void handleUseCurrentLocation()
+    // Run once on first load so the dashboard can switch away from the default city automatically.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

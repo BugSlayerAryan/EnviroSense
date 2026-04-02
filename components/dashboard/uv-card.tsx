@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { fetchUvData } from "@/api/api"
+import { UvMetricSkeleton } from "@/components/dashboard/loading-states"
 
 export function UvCard() {
   const searchParams = useSearchParams()
@@ -14,6 +15,7 @@ export function UvCard() {
   const [uv, setUv] = useState<number | null>(null)
   const [sunlightHours, setSunlightHours] = useState<number | null>(null)
   const [radiation, setRadiation] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   const uvLabel = useMemo(() => {
     if (uv === null) return "Unavailable"
@@ -35,6 +37,7 @@ export function UvCard() {
 
   const handleRefresh = async (requestedCity?: string) => {
     setIsRefreshing(true)
+    setIsLoading(true)
     try {
       const data = await fetchUvData(requestedCity ?? cityQuery)
       if (typeof data?.currentUv === "number") {
@@ -50,6 +53,7 @@ export function UvCard() {
       setRadiation(null)
     }
     setIsRefreshing(false)
+    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -64,6 +68,10 @@ export function UvCard() {
     return () => window.clearInterval(interval)
   }, [cityQuery])
 
+  if (isLoading) {
+    return <UvMetricSkeleton />
+  }
+
   const normalizedUv = uv ?? 0
   const computedSunlight = sunlightHours ?? Number((12 - Math.min(normalizedUv, 11) * 0.35).toFixed(1))
   const computedRadiation = radiation ?? Number((normalizedUv * 20).toFixed(0))
@@ -75,7 +83,7 @@ export function UvCard() {
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Solar radiation index · Health protection data</p>
         </div>
         <button aria-label="Refresh UV data" title="Refresh" onClick={() => void handleRefresh()} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
-          <RefreshCw className={`h-4 w-4 text-yellow-500 dark:text-yellow-400 ${isRefreshing ? "animate-spin" : ""}`} />
+          {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-yellow-400/70 animate-pulse dark:bg-yellow-300/70" /> : <RefreshCw className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />}
         </button>
       </div>
 

@@ -59,6 +59,13 @@ function toDayLabel(unixTime: number) {
   return new Date(unixTime * 1000).toLocaleDateString("en-US", { weekday: "short" })
 }
 
+function toDateLabel(unixTime: number, timezoneOffsetSeconds = 0) {
+  return new Date((unixTime + timezoneOffsetSeconds) * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 function getWeatherIcon(main: string | undefined, clouds = 0, rainChance = 0): WeatherIconName {
   const normalized = (main ?? "").toLowerCase()
   if (normalized.includes("rain") || normalized.includes("drizzle") || rainChance >= 45) return "rain"
@@ -85,30 +92,62 @@ function getDewPoint(tempC: number, humidity: number) {
   return Number(((b * alpha) / (a - alpha)).toFixed(1))
 }
 
+function deriveRainChance(rawPop: unknown, clouds = 0, rainMm = 0, weatherMain?: string) {
+  // Priority 1: actual rain volume
+  if (rainMm > 0) {
+    return Math.min(100, Math.max(20, Math.round(rainMm * 20)))
+  }
+
+  // Priority 2: explicit weather condition (rain/drizzle/thunder)
+  const weather = (weatherMain ?? "").toLowerCase()
+  if (weather.includes("rain") || weather.includes("drizzle") || weather.includes("thunder")) {
+    return Math.min(100, Math.max(35, Math.round(clouds * 0.7)))
+  }
+
+  // Priority 3: use pop if it's explicitly non-zero
+  if (typeof rawPop === "number" && Number.isFinite(rawPop) && rawPop > 0) {
+    return Math.min(100, Math.max(0, Math.round(rawPop * 100)))
+  }
+
+  // Priority 4: cloud-based estimation (pop was zero or missing)
+  // Higher clouds = higher rain chance, even with pop=0
+  if (clouds > 0) {
+    return Math.min(100, Math.max(0, Math.round(clouds * 0.5)))
+  }
+
+  return 0
+}
+
 function buildForecastFromOneCall(oneCallData: any, currentTemp: number) {
   const hourly = (oneCallData?.hourly ?? []).slice(0, 8).map((item: any) => {
     const clouds = typeof item?.clouds === "number" ? item.clouds : 0
-    const pop = typeof item?.pop === "number" ? Math.round(item.pop * 100) : 0
+    const rainMm = typeof item?.rain?.["1h"] === "number" ? item.rain["1h"] : 0
+    const pop = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
     return {
       time: item?.dt ? toHourLabel(item.dt) : "Now",
+      date: item?.dt ? toDateLabel(item.dt, typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0) : null,
       temp: Math.round(typeof item?.temp === "number" ? item.temp : currentTemp),
       icon: getHourlyIcon(item?.weather?.[0]?.main, clouds, pop),
       rainChance: pop,
+      rainMm: Number(rainMm.toFixed(1)),
     }
   })
 
   const daily = (oneCallData?.daily ?? []).slice(0, 7).map((item: any, index: number) => {
     const clouds = typeof item?.clouds === "number" ? item.clouds : 0
-    const rainChance = typeof item?.pop === "number" ? Math.round(item.pop * 100) : 0
+    const rainMm = typeof item?.rain === "number" ? Number(item.rain.toFixed(1)) : 0
+    const rainChance = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
     const max = Math.round(typeof item?.temp?.max === "number" ? item.temp.max : currentTemp)
     const min = Math.round(typeof item?.temp?.min === "number" ? item.temp.min : currentTemp)
     const current = index === 0 ? Math.round(typeof oneCallData?.current?.temp === "number" ? oneCallData.current.temp : currentTemp) : undefined
     return {
       day: item?.dt ? toDayLabel(item.dt) : index === 0 ? "Today" : `Day ${index + 1}`,
+      date: item?.dt ? toDateLabel(item.dt, typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0) : null,
       icon: getWeatherIcon(item?.weather?.[0]?.main, clouds, rainChance),
       max,
       min,
       rain: rainChance,
+      rainMm,
       current,
     }
   })
@@ -141,16 +180,19 @@ function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number
   const list = Array.isArray(forecastData?.list) ? forecastData.list : []
   const hourly = list.slice(0, 8).map((item: any, index: number) => {
     const clouds = typeof item?.clouds?.all === "number" ? item.clouds.all : 0
-    const pop = typeof item?.pop === "number" ? Math.round(item.pop * 100) : Math.round(clouds * 0.6)
+    const rainMm = typeof item?.rain?.["3h"] === "number" ? item.rain["3h"] : 0
+    const pop = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
     return {
       time: item?.dt ? toHourLabel(item.dt) : index === 0 ? "Now" : `${index + 1}H`,
+      date: item?.dt ? toDateLabel(item.dt) : null,
       temp: Math.round(typeof item?.main?.temp === "number" ? item.main.temp : currentTemp),
       icon: getHourlyIcon(item?.weather?.[0]?.main, clouds, pop),
       rainChance: pop,
+      rainMm: Number(rainMm.toFixed(1)),
     }
   })
 
-  const grouped = new Map<string, { day: string; min: number; max: number; rain: number; icon: WeatherIconName; current?: number }>()
+  const grouped = new Map<string, { day: string; date: string; timestamp: number; min: number; max: number; rain: number; rainMm: number; icon: WeatherIconName; current?: number }>()
   list.forEach((item: any, index: number) => {
     const dt = typeof item?.dt === "number" ? item.dt : 0
     if (!dt) return
@@ -158,15 +200,19 @@ function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number
     const dayLabel = toDayLabel(dt)
     const temp = typeof item?.main?.temp === "number" ? item.main.temp : currentTemp
     const clouds = typeof item?.clouds?.all === "number" ? item.clouds.all : 0
-    const rainChance = typeof item?.pop === "number" ? Math.round(item.pop * 100) : Math.round(clouds * 0.6)
+    const rainVolumeMm = typeof item?.rain?.["3h"] === "number" ? item.rain["3h"] : 0
+    const rainChance = deriveRainChance(item?.pop, clouds, rainVolumeMm, item?.weather?.[0]?.main)
     const icon = getWeatherIcon(item?.weather?.[0]?.main, clouds, rainChance)
     const existing = grouped.get(dateKey)
     if (!existing) {
       grouped.set(dateKey, {
         day: dayLabel,
+        date: toDateLabel(dt),
+        timestamp: dt,
         min: Math.round(temp),
         max: Math.round(temp),
         rain: rainChance,
+        rainMm: Number(rainVolumeMm.toFixed(1)),
         icon,
         current: index === 0 ? Math.round(temp) : undefined,
       })
@@ -176,23 +222,13 @@ function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number
     existing.min = Math.min(existing.min, Math.round(temp))
     existing.max = Math.max(existing.max, Math.round(temp))
     existing.rain = Math.max(existing.rain, rainChance)
+    existing.rainMm = Number((existing.rainMm + rainVolumeMm).toFixed(1))
     if (icon === "rain") existing.icon = "rain"
     else if (icon === "cloud" && existing.icon !== "rain") existing.icon = "cloud"
     else if (icon === "partly" && existing.icon === "sun") existing.icon = "partly"
   })
 
   const daily = Array.from(grouped.values()).slice(0, 7)
-  while (daily.length > 0 && daily.length < 7) {
-    const previous = daily[daily.length - 1]
-    const nextIndex = daily.length + 1
-    daily.push({
-      day: `Day ${nextIndex}`,
-      icon: previous.icon,
-      max: previous.max + 1,
-      min: previous.min + 1,
-      rain: previous.rain,
-    })
-  }
 
   return { hourly, daily }
 }
@@ -258,8 +294,8 @@ export async function GET(request: NextRequest) {
     const lat = data?.coord?.lat
     const lon = data?.coord?.lon
 
-    let hourly: Array<{ time: string; temp: number; icon: string; rainChance: number }> = []
-    let daily: Array<{ day: string; icon: WeatherIconName; max: number; min: number; rain: number; current?: number }> = []
+    let hourly: Array<{ time: string; temp: number; icon: string; rainChance: number; rainMm?: number }> = []
+    let daily: Array<{ day: string; icon: WeatherIconName; max: number; min: number; rain: number; rainMm?: number; current?: number }> = []
     let astronomy = {
       sunrise: typeof data?.sys?.sunrise === "number" ? formatClock(data.sys.sunrise, data?.timezone ?? 0) : null,
       sunset: typeof data?.sys?.sunset === "number" ? formatClock(data.sys.sunset, data?.timezone ?? 0) : null,

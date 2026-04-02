@@ -13,19 +13,32 @@ import { Suspense } from "react"
 
 export const dynamic = 'force-dynamic'
 
-function EnvironmentScoreWrapper() {
+type HomePageProps = {
+  searchParams?: {
+    city?: string | string[]
+  }
+}
+
+function getActiveCity(searchParams?: HomePageProps["searchParams"]) {
+  const city = searchParams?.city
+  return Array.isArray(city) ? city[0] : city
+}
+
+function EnvironmentScoreWrapper({ city }: { city?: string }) {
   return (
     <Suspense fallback={<div className="glass-card h-96 animate-pulse" />}>
-      <EnvironmentScoreWithParams />
+      <EnvironmentScoreWithParams city={city} />
     </Suspense>
   )
 }
 
-function EnvironmentScoreWithParams() {
-  return <EnvironmentScore />
+function EnvironmentScoreWithParams({ city }: { city?: string }) {
+  return <EnvironmentScore city={city} />
 }
 
-export default function HomePage() {
+export default function HomePage({ searchParams }: HomePageProps) {
+  const activeCity = getActiveCity(searchParams)
+
   return (
     <main className="relative h-dvh overflow-hidden">
       <DashboardBackground />
@@ -41,7 +54,7 @@ export default function HomePage() {
           <section className="dashboard-scroll flex-1 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
             {/* Hero Card: Environment Score */}
             <div className="mb-7 lg:mb-8">
-              <EnvironmentScoreWrapper />
+              <EnvironmentScoreWrapper city={activeCity} />
             </div>
 
               {/* Primary metrics grid (3 columns) */}

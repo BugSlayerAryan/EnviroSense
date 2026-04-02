@@ -1,18 +1,73 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { useTheme } from "next-themes"
+import { useSearchParams } from "next/navigation"
+import { fetchAqiData } from "@/api/api"
+import { ChartSkeleton } from "@/components/dashboard/loading-states"
 
-const data = [
-  { day: "Apr 6", aqi: 85 },
-  { day: "Apr 7", aqi: 95 },
-  { day: "Apr 8", aqi: 120 },
-  { day: "Apr 9", aqi: 145 },
-  { day: "Apr 10", aqi: 135 },
-  { day: "Apr 11", aqi: 165 },
-  { day: "Apr 12", aqi: 155 },
-]
+type AqiTrendPoint = {
+  day: string
+  aqi: number | null
+}
+
+type AqiTrendStore = Record<string, number>
+
+type ApiTrendPoint = {
+  day?: string
+  date?: string
+  aqi?: number | null
+}
+
+const AQI_TREND_HISTORY_KEY = "envirosense-aqi-trend-history-v1"
+
+function getDateKey(date = new Date()) {
+  return date.toISOString().slice(0, 10)
+}
+
+function getDateLabel(date = new Date()) {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function readAqiTrendStore(): AqiTrendStore {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(AQI_TREND_HISTORY_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? (parsed as AqiTrendStore) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeAqiTrendStore(store: AqiTrendStore) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(AQI_TREND_HISTORY_KEY, JSON.stringify(store))
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function buildLastSevenDaysAqi(currentAqi: number | null, store: AqiTrendStore) {
+  const chartData: AqiTrendPoint[] = []
+
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date()
+    date.setDate(date.getDate() - offset)
+    const dateKey = getDateKey(date)
+    const storedValue = store[dateKey]
+    chartData.push({
+      day: getDateLabel(date),
+      aqi: typeof storedValue === "number" ? storedValue : offset === 0 ? currentAqi : null,
+    })
+  }
+
+  return chartData
+}
 
 function AqiTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null
@@ -25,10 +80,75 @@ function AqiTooltip({ active, payload }: any) {
 }
 
 export function AqiTrendChart() {
+  const searchParams = useSearchParams()
+  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const strokeGradient = isDark ? "url(#aqiStrokeDark)" : "url(#aqiStroke)"
   const fillGradient = isDark ? "url(#aqiFillDark)" : "url(#aqiFill)"
+  const [data, setData] = useState<AqiTrendPoint[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadTrend() {
+      setIsLoading(true)
+      try {
+        const aqiData = await fetchAqiData(cityQuery)
+        const currentAqi = typeof aqiData?.aqi === "number" ? aqiData.aqi : null
+        const apiTrend = Array.isArray(aqiData?.trend)
+          ? (aqiData.trend as ApiTrendPoint[])
+              .map((point: ApiTrendPoint) => ({
+                day: point.day ?? point.date ?? "",
+                aqi: typeof point.aqi === "number" ? point.aqi : null,
+              }))
+              .filter((point) => point.day)
+          : []
+
+        if (apiTrend.length > 0) {
+          if (isMounted) {
+            setData(apiTrend.slice(-7))
+          }
+          return
+        }
+
+        const store = readAqiTrendStore()
+        const todayKey = getDateKey()
+        if (currentAqi !== null) {
+          store[todayKey] = currentAqi
+        }
+
+        const chartData = buildLastSevenDaysAqi(currentAqi, store)
+        writeAqiTrendStore(store)
+
+        if (isMounted) {
+          setData(chartData)
+        }
+      } catch {
+        const store = readAqiTrendStore()
+        const chartData = buildLastSevenDaysAqi(null, store)
+        if (isMounted) {
+          setData(chartData)
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadTrend()
+    return () => {
+      isMounted = false
+    }
+  }, [cityQuery])
+
+  const chartData = useMemo(() => data.slice(0, 7), [data])
+
+  if (isLoading) {
+    return <ChartSkeleton className="p-4 sm:p-5 md:p-6" />
+  }
 
   return (
     <motion.div
@@ -52,7 +172,7 @@ export function AqiTrendChart() {
 
       <div className="h-40 w-full sm:h-44 md:h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
             <defs>
               <linearGradient id="aqiStroke" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#34d399" />
@@ -84,6 +204,7 @@ export function AqiTrendChart() {
               fill={fillGradient}
               isAnimationActive={true}
               animationDuration={900}
+              connectNulls
               dot={{ fill: "#ffffff", stroke: isDark ? "#fb923c" : "#f87171", strokeWidth: 1.5, r: 3.5 }}
               activeDot={{ r: 5 }}
             />

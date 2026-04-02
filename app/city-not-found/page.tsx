@@ -9,6 +9,7 @@ import { DashboardBackground } from "@/components/dashboard/background"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
+import { CityNotFoundLoading } from "@/components/dashboard/route-loading"
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ const suggestedCities = ["Mumbai", "Delhi", "Bengaluru", "Kolkata", "Chennai"]
 
 export default function CityNotFoundPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<CityNotFoundLoading />}>
       <CityNotFoundContent />
     </Suspense>
   )

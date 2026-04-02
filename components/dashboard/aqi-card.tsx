@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { fetchAqiData } from "@/api/api"
+import { AqiMetricSkeleton } from "@/components/dashboard/loading-states"
 
 export function AqiCard() {
   const searchParams = useSearchParams()
@@ -15,6 +16,7 @@ export function AqiCard() {
   const [pm25, setPm25] = useState<number | null>(null)
   const [pm10, setPm10] = useState<number | null>(null)
   const [co, setCo] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   const aqiLabel = useMemo(() => {
     if (aqi === null) return "Unavailable"
@@ -27,6 +29,7 @@ export function AqiCard() {
 
   const handleRefresh = async (requestedCity?: string) => {
     setIsRefreshing(true)
+    setIsLoading(true)
     try {
       const data = await fetchAqiData((requestedCity ?? cityQuery).split(",")[0].trim())
       setAqi(typeof data?.aqi === "number" ? data.aqi : null)
@@ -40,6 +43,7 @@ export function AqiCard() {
       setCo(null)
     }
     setIsRefreshing(false)
+    setIsLoading(false)
   }
 
   useEffect(() => {
@@ -54,6 +58,10 @@ export function AqiCard() {
     return () => window.clearInterval(interval)
   }, [cityQuery])
 
+  if (isLoading) {
+    return <AqiMetricSkeleton />
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} whileHover={{ y: -2 }} className="glass-card glow-red flex h-full flex-col p-3.5 sm:p-4 transition-all duration-300 ease-in-out">
       <div className="mb-3 flex items-center justify-between">
@@ -62,7 +70,7 @@ export function AqiCard() {
           <p className="text-xs text-gray-500 dark:text-gray-400">Real-time monitoring · PM2.5, PM10, CO</p>
         </div>
         <button aria-label="Refresh AQI data" title="Refresh" onClick={() => void handleRefresh()} className="rounded-xl bg-white/70 p-2 shadow-sm dark:bg-white/10 dark:shadow-[0_0_20px_rgba(248,113,113,0.4)] hover:scale-110 transition-transform">
-          <RefreshCw className={`h-4 w-4 text-red-400 dark:text-white/80 ${isRefreshing ? "animate-spin" : ""}`} />
+          {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-red-400/70 animate-pulse dark:bg-red-300/70" /> : <RefreshCw className="h-4 w-4 text-red-400 dark:text-white/80" />}
         </button>
       </div>
 

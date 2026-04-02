@@ -9,6 +9,7 @@ export type WeeklyForecastDay = {
   max: number
   min: number
   rain: number
+  rainMm?: number
   current?: number
 }
 

@@ -31,6 +31,7 @@ import {
 } from "recharts"
 import { fetchAqiData, fetchWeatherData } from "@/api/api"
 import { useSearchParams } from "next/navigation"
+import { AqiDashboardSkeleton } from "@/components/dashboard/loading-states"
 
 type Pollutant = {
   key: string
@@ -54,6 +55,17 @@ type PollutantMeta = {
 }
 
 type PollutantValues = Record<PollutantKey, number>
+
+type TrendPoint = {
+  day: string
+  aqi: number | null
+}
+
+type ApiTrendPoint = {
+  day?: string
+  date?: string
+  aqi?: number | null
+}
 
 const pollutantMeta: PollutantMeta[] = [
   { key: "pm25", label: "PM2.5", unit: "ug/m3", tone: "red", icon: Factory },
@@ -125,16 +137,6 @@ const hourlyAqi = [
   { time: "16:00", aqi: 148 },
   { time: "18:00", aqi: 141 },
   { time: "20:00", aqi: 136 },
-]
-
-const weeklyAqi = [
-  { day: "Mon", aqi: 98 },
-  { day: "Tue", aqi: 112 },
-  { day: "Wed", aqi: 126 },
-  { day: "Thu", aqi: 138 },
-  { day: "Fri", aqi: 129 },
-  { day: "Sat", aqi: 116 },
-  { day: "Sun", aqi: 109 },
 ]
 
 function getToneClasses(tone: Pollutant["tone"]) {
@@ -401,9 +403,10 @@ export function AirQualityDashboard() {
   const searchParams = useSearchParams()
   const cityQuery = searchParams.get("city") ?? "New Delhi, India"
   const [city, setCity] = useState("New Delhi, India")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [showError, setShowError] = useState(false)
   const [currentAqi, setCurrentAqi] = useState(132)
+  const [weeklyAqi, setWeeklyAqi] = useState<TrendPoint[]>([])
   const [pollutantValues, setPollutantValues] = useState<PollutantValues>(defaultPollutants)
   const [previousPollutantValues, setPreviousPollutantValues] = useState<Partial<PollutantValues> | null>(null)
   const [weatherTemp, setWeatherTemp] = useState(29)
@@ -553,6 +556,19 @@ export function AirQualityDashboard() {
           }
           writePollutantSnapshotStore(snapshotStore)
 
+          const apiTrend = Array.isArray(data?.trend)
+            ? (data.trend as ApiTrendPoint[])
+                .map((point: ApiTrendPoint) => ({
+                  day: point.day ?? point.date ?? "",
+                  aqi: typeof point.aqi === "number" ? point.aqi : null,
+                }))
+                .filter((point) => point.day)
+            : []
+
+          if (apiTrend.length > 0) {
+            setWeeklyAqi(apiTrend.slice(-7))
+          }
+
           return nextValues
         })
       }
@@ -581,6 +597,14 @@ export function AirQualityDashboard() {
 
     return () => window.clearInterval(timerId)
   }, [])
+
+  if (isLoading) {
+    return (
+      <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
+        <AqiDashboardSkeleton />
+      </section>
+    )
+  }
 
   return (
     <section className="dashboard-scroll flex-1 overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">

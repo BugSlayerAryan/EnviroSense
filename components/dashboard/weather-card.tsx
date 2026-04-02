@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { fetchWeatherData } from "@/api/api"
+import { WeatherMetricSkeleton } from "@/components/dashboard/loading-states"
 
 export function WeatherCard() {
   const searchParams = useSearchParams()
@@ -16,6 +17,7 @@ export function WeatherCard() {
   const [humidity, setHumidity] = useState(58)
   const [windKmh, setWindKmh] = useState(12)
   const [rainChance, setRainChance] = useState(20)
+  const [isLoading, setIsLoading] = useState(true)
 
   const getWeatherIcon = () => {
     if (temp >= 25) return <Sun className="h-10 w-10 text-yellow-400 dark:text-yellow-300" />
@@ -29,6 +31,7 @@ export function WeatherCard() {
 
   const handleRefresh = async (requestedCity?: string) => {
     setIsRefreshing(true)
+    setIsLoading(true)
     try {
       const data = await fetchWeatherData(requestedCity ?? cityQuery)
       if (typeof data?.temp === "number") setTemp(Math.round(data.temp))
@@ -40,11 +43,16 @@ export function WeatherCard() {
       // Keep previous values on transient API failure.
     }
     setIsRefreshing(false)
+    setIsLoading(false)
   }
 
   useEffect(() => {
     void handleRefresh(cityQuery)
   }, [cityQuery])
+
+  if (isLoading) {
+    return <WeatherMetricSkeleton />
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} whileHover={{ y: -2 }} className="glass-card glow-blue flex h-full flex-col p-3.5 shadow-md transition-all duration-300 ease-in-out sm:p-4">
@@ -58,7 +66,7 @@ export function WeatherCard() {
             {isFahrenheit ? "°C" : "°F"}
           </button>
           <button aria-label="Refresh weather" title="Refresh" onClick={() => void handleRefresh()} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
-            <RefreshCw className={`h-4 w-4 text-blue-500 dark:text-blue-400 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-blue-400/70 animate-pulse dark:bg-blue-300/70" /> : <RefreshCw className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
           </button>
         </div>
       </div>
