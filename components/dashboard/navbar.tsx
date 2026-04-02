@@ -131,6 +131,7 @@ function NavbarClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const didInitializeLocation = useRef(false)
+  const manualCitySelectionRef = useRef(false)
   const [mounted, setMounted] = useState(false)
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState("")
@@ -194,10 +195,20 @@ function NavbarClient() {
             try {
               const reverse = await reverseGeocodeCity(position.coords.latitude, position.coords.longitude, true)
               const detectedCity = reverse?.city || DEFAULT_CITY
+              if (manualCitySelectionRef.current) {
+                setIsDetectingLocation(false)
+                resolve()
+                return
+              }
               setSearchValue(detectedCity)
               setLocationError("")
               router.replace(resolveRouteForCity(detectedCity))
             } catch {
+              if (manualCitySelectionRef.current) {
+                setIsDetectingLocation(false)
+                resolve()
+                return
+              }
               setSearchValue(DEFAULT_CITY)
               router.replace(resolveRouteForCity(DEFAULT_CITY))
             } finally {
@@ -207,6 +218,11 @@ function NavbarClient() {
           },
           (error) => {
             // Geolocation denied or failed - use default
+            if (manualCitySelectionRef.current) {
+              setIsDetectingLocation(false)
+              resolve()
+              return
+            }
             if (error.code === error.PERMISSION_DENIED) {
               setLocationError("Location access denied. Using New Delhi.")
             } else {
@@ -229,15 +245,13 @@ function NavbarClient() {
     setMounted(true)
   }, [])
 
-  // Update searchValue when navigating to a different URL with city
+  // Keep input in sync only when route/query city changes, not while user types.
   useEffect(() => {
-    if (searchValue === null) return // Wait for initial city detection
-    
     const urlCity = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
-    if (urlCity && urlCity !== searchValue) {
+    if (urlCity) {
       setSearchValue(urlCity)
     }
-  }, [pathname, searchParams, searchValue])
+  }, [pathname, searchParams])
 
   const pushWithCity = useCallback((city: string) => {
     const nextRoute = resolveRouteForCity(city)
@@ -253,29 +267,38 @@ function NavbarClient() {
     if (!searchValue) return // Guard against null searchValue
     const trimmed = searchValue.trim()
     if (!trimmed) return
+    manualCitySelectionRef.current = true
     setLocationError("")
 
     try {
       const weather = await fetchWeatherData(trimmed, true)
       const resolvedCity = typeof weather?.city === "string" ? weather.city.trim() : ""
       const resolvedCountry = typeof weather?.country === "string" ? weather.country.trim() : ""
-      const nextCity = resolvedCity
-        ? resolvedCountry
-          ? `${resolvedCity}, ${resolvedCountry}`
-          : resolvedCity
-        : trimmed
-      applyCityQuery(nextCity)
+
+      if (resolvedCity && resolvedCountry) {
+        applyCityQuery(`${resolvedCity}, ${resolvedCountry}`)
+        return
+      }
+
+      if (resolvedCity) {
+        applyCityQuery(resolvedCity)
+        return
+      }
+
+      applyCityQuery(trimmed)
     } catch (error) {
       if (error instanceof Error && error.message === "CITY_NOT_FOUND") {
         router.push(`/city-not-found?city=${encodeURIComponent(trimmed)}`)
         return
       }
 
+      // For transient API/network errors, keep manual search usable.
       applyCityQuery(trimmed)
     }
   }, [searchValue, applyCityQuery, router])
 
   const handleUseCurrentLocation = useCallback(() => {
+    manualCitySelectionRef.current = true
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported in this browser. Showing New Delhi by default.")
       setSearchValue(DEFAULT_CITY)

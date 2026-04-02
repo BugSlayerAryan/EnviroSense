@@ -35,6 +35,11 @@ function splitCityCountry(input: string) {
 }
 
 function normalizeCountrySlug(country: string) {
+  const normalizedCountry = country.trim().toLowerCase()
+  if (normalizedCountry === "in" || normalizedCountry === "india") {
+    return "india"
+  }
+
   if (/^[a-z]{2}$/i.test(country)) {
     return country.toLowerCase()
   }
@@ -44,6 +49,11 @@ function normalizeCountrySlug(country: string) {
 
 function formatCountryLabel(countrySegment: string) {
   const cleaned = decodeSegment(countrySegment)
+  const normalizedCountry = cleaned.toLowerCase()
+  if (normalizedCountry === "in" || normalizedCountry === "india") {
+    return "India"
+  }
+
   if (/^[a-z]{2}$/i.test(cleaned)) {
     return cleaned.toUpperCase()
   }
@@ -55,6 +65,10 @@ export function cityFromRouteSegments(countrySegment: string, citySegment: strin
   const country = formatCountryLabel(countrySegment)
   const city = toTitleCase(decodeSegment(citySegment))
   return `${city}, ${country}`
+}
+
+export function canonicalCountrySegment(countrySegment: string) {
+  return normalizeCountrySlug(formatCountryLabel(countrySegment))
 }
 
 export function buildDashboardRoute(cityInput: string) {

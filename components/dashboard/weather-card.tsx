@@ -34,11 +34,11 @@ export function WeatherCard({ initialCity }: WeatherCardProps) {
   const displayTemp = temp === null ? "--" : isFahrenheit ? Math.round((temp * 9/5) + 32) : temp
   const tempUnit = isFahrenheit ? "°F" : "°C"
 
-  const handleRefresh = async (requestedCity?: string) => {
+  const handleRefresh = async (requestedCity?: string, forceFresh = false) => {
     setIsRefreshing(true)
     setIsLoading(true)
     try {
-      const data = await fetchWeatherData(requestedCity ?? cityQuery)
+      const data = await fetchWeatherData(requestedCity ?? cityQuery, !forceFresh)
       setTemp(typeof data?.temp === "number" ? Math.round(data.temp) : null)
       setHumidity(typeof data?.humidity === "number" ? data.humidity : null)
       setWindKmh(typeof data?.windKmh === "number" ? Math.round(data.windKmh) : null)
@@ -78,7 +78,7 @@ export function WeatherCard({ initialCity }: WeatherCardProps) {
           <button aria-label="Convert temperature" title="Toggle temperature unit" onClick={() => setIsFahrenheit(!isFahrenheit)} className="rounded-lg bg-white/60 px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:text-white dark:hover:bg-white/15">
             {isFahrenheit ? "°C" : "°F"}
           </button>
-          <button aria-label="Refresh weather" title="Refresh" onClick={() => void handleRefresh()} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
+          <button aria-label="Refresh weather" title="Refresh" onClick={() => void handleRefresh(undefined, true)} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
             {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-blue-400/70 animate-pulse dark:bg-blue-300/70" /> : <RefreshCw className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
           </button>
         </div>

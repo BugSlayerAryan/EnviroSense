@@ -9,8 +9,9 @@ import { HealthTipCard } from "@/components/dashboard/health-tip-card"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
-import { cityFromRouteSegments } from "@/lib/location-route"
+import { canonicalCountrySegment, cityFromRouteSegments } from "@/lib/location-route"
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -35,6 +36,12 @@ function EnvironmentScoreWithParams({ city }: { city?: string }) {
 
 export default async function DashboardCityPage({ params }: DashboardCityPageProps) {
   const resolvedParams = await params
+  const normalizedCountry = canonicalCountrySegment(resolvedParams.country)
+
+  if (normalizedCountry !== resolvedParams.country) {
+    redirect(`/${normalizedCountry}/${resolvedParams.city}`)
+  }
+
   const activeCity = cityFromRouteSegments(resolvedParams.country, resolvedParams.city)
 
   return (

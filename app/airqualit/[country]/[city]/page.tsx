@@ -3,7 +3,8 @@ import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { AirQualityDashboard } from "@/components/dashboard/airquality/aqi-dashboard"
-import { cityFromRouteSegments } from "@/lib/location-route"
+import { canonicalCountrySegment, cityFromRouteSegments } from "@/lib/location-route"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,12 @@ type AirQualitCityPageProps = {
 
 export default async function AirQualitCityPage({ params }: AirQualitCityPageProps) {
   const resolvedParams = await params
+  const normalizedCountry = canonicalCountrySegment(resolvedParams.country)
+
+  if (normalizedCountry !== resolvedParams.country) {
+    redirect(`/airqualit/${normalizedCountry}/${resolvedParams.city}`)
+  }
+
   const initialCity = cityFromRouteSegments(resolvedParams.country, resolvedParams.city)
 
   return (

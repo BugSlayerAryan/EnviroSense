@@ -32,11 +32,11 @@ export function AqiCard({ initialCity }: AqiCardProps) {
   }, [aqi])
 
   const handleRefresh = useCallback(
-    async (requestedCity?: string) => {
+    async (requestedCity?: string, forceFresh = false) => {
       setIsRefreshing(true)
       setIsLoading(true)
       try {
-        const data = await fetchAqiData((requestedCity ?? cityQuery).split(",")[0].trim(), true)
+        const data = await fetchAqiData((requestedCity ?? cityQuery).split(",")[0].trim(), !forceFresh)
         setAqi(typeof data?.aqi === "number" ? data.aqi : null)
         setPm25(typeof data?.pollutants?.pm25 === "number" ? Number(data.pollutants.pm25.toFixed(1)) : null)
         setPm10(typeof data?.pollutants?.pm10 === "number" ? Number(data.pollutants.pm10.toFixed(1)) : null)
@@ -59,7 +59,7 @@ export function AqiCard({ initialCity }: AqiCardProps) {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      void handleRefresh(cityQuery)
+      void handleRefresh(cityQuery, true)
     }, 120000)
 
     return () => window.clearInterval(interval)
@@ -76,7 +76,7 @@ export function AqiCard({ initialCity }: AqiCardProps) {
           <h3 className="text-sm font-bold text-gray-800 dark:text-white sm:text-base">Live Air Quality</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">Real-time monitoring · PM2.5, PM10, CO</p>
         </div>
-        <button aria-label="Refresh AQI data" title="Refresh" onClick={() => void handleRefresh()} className="rounded-xl bg-white/70 p-2 shadow-sm dark:bg-white/10 dark:shadow-[0_0_20px_rgba(248,113,113,0.4)] hover:scale-110 transition-transform">
+        <button aria-label="Refresh AQI data" title="Refresh" onClick={() => void handleRefresh(undefined, true)} className="rounded-xl bg-white/70 p-2 shadow-sm dark:bg-white/10 dark:shadow-[0_0_20px_rgba(248,113,113,0.4)] hover:scale-110 transition-transform">
           {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-red-400/70 animate-pulse dark:bg-red-300/70" /> : <RefreshCw className="h-4 w-4 text-red-400 dark:text-white/80" />}
         </button>
       </div>

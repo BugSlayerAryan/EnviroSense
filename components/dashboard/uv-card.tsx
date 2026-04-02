@@ -39,11 +39,11 @@ export function UvCard({ initialCity }: UvCardProps) {
     return "Extreme exposure · Critical: Limit outdoor time 10 AM - 4 PM"
   }, [uv])
 
-  const handleRefresh = async (requestedCity?: string) => {
+  const handleRefresh = async (requestedCity?: string, forceFresh = false) => {
     setIsRefreshing(true)
     setIsLoading(true)
     try {
-      const data = await fetchUvData(requestedCity ?? cityQuery)
+      const data = await fetchUvData(requestedCity ?? cityQuery, !forceFresh)
       if (typeof data?.currentUv === "number") {
         setUv(Math.round(data.currentUv))
       } else {
@@ -66,7 +66,7 @@ export function UvCard({ initialCity }: UvCardProps) {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      void handleRefresh(cityQuery)
+      void handleRefresh(cityQuery, true)
     }, 120000)
 
     return () => window.clearInterval(interval)
@@ -86,7 +86,7 @@ export function UvCard({ initialCity }: UvCardProps) {
           <h3 className="text-sm font-semibold text-gray-800 dark:text-white sm:text-base">Live UV Index</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Solar radiation index · Health protection data</p>
         </div>
-        <button aria-label="Refresh UV data" title="Refresh" onClick={() => void handleRefresh()} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
+        <button aria-label="Refresh UV data" title="Refresh" onClick={() => void handleRefresh(undefined, true)} className="rounded-lg bg-white/60 p-1.5 shadow-sm transition-all hover:bg-white/80 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15">
           {isRefreshing ? <span className="inline-block h-4 w-4 rounded-full bg-yellow-400/70 animate-pulse dark:bg-yellow-300/70" /> : <RefreshCw className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />}
         </button>
       </div>
