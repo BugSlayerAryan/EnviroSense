@@ -5,6 +5,15 @@ const OPEN_WEATHER_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
 const ONE_CALL_V3 = "https://api.openweathermap.org/data/3.0/onecall"
 const ONE_CALL_V25 = "https://api.openweathermap.org/data/2.5/onecall"
 
+function resolveWeatherApiKey() {
+  return (
+    process.env.WEATHER_API_KEY
+    ?? process.env.OPENWEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
+    ?? process.env.VITE_WEATHER_KEY
+  )
+}
+
 type WeatherIconName = "sun" | "cloud" | "rain" | "partly"
 
 function formatClock(unixTime: number, timezoneOffsetSeconds = 0) {
@@ -184,11 +193,6 @@ function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number
 }
 
 export async function GET(request: NextRequest) {
-  const apiKey = process.env.VITE_WEATHER_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: "Missing VITE_WEATHER_KEY" }, { status: 500 })
-  }
-
   const city = request.nextUrl.searchParams.get("city") ?? "New Delhi"
 
   const fallbackPayload = {
@@ -218,6 +222,14 @@ export async function GET(request: NextRequest) {
       moonIllumination: null,
     },
     updatedAt: new Date().toISOString(),
+  }
+
+  const apiKey = resolveWeatherApiKey()
+  if (!apiKey) {
+    return NextResponse.json(
+      { ...fallbackPayload, warning: "Missing weather API key on server" },
+      { status: 200 },
+    )
   }
 
   try {

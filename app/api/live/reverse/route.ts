@@ -2,10 +2,22 @@ import { NextRequest, NextResponse } from "next/server"
 
 const OPEN_WEATHER_REVERSE = "https://api.openweathermap.org/geo/1.0/reverse"
 
+function resolveWeatherApiKey() {
+  return (
+    process.env.WEATHER_API_KEY
+    ?? process.env.OPENWEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
+    ?? process.env.VITE_WEATHER_KEY
+  )
+}
+
 export async function GET(request: NextRequest) {
-  const apiKey = process.env.VITE_WEATHER_KEY
+  const apiKey = resolveWeatherApiKey()
   if (!apiKey) {
-    return NextResponse.json({ error: "Missing VITE_WEATHER_KEY" }, { status: 500 })
+    return NextResponse.json(
+      { city: null, warning: "Missing weather API key on server" },
+      { status: 200 },
+    )
   }
 
   const lat = request.nextUrl.searchParams.get("lat")

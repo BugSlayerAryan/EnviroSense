@@ -4,6 +4,23 @@ const WAQI_BASE = "https://api.waqi.info/feed"
 const OPEN_WEATHER_GEO = "https://api.openweathermap.org/geo/1.0/direct"
 const OPEN_WEATHER_AIR_HISTORY = "https://api.openweathermap.org/data/2.5/air_pollution/history"
 
+function resolveWeatherApiKey() {
+  return (
+    process.env.WEATHER_API_KEY
+    ?? process.env.OPENWEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
+    ?? process.env.VITE_WEATHER_KEY
+  )
+}
+
+function resolveWaqiApiKey() {
+  return (
+    process.env.WAQI_API_KEY
+    ?? process.env.NEXT_PUBLIC_WAQI_API_KEY
+    ?? process.env.VITE_WAQI_KEY
+  )
+}
+
 type PollutantSet = {
   pm25: number | null
   pm10: number | null
@@ -95,11 +112,6 @@ async function fetchPreviousDayPollutants(lat: number, lon: number, weatherKey: 
 }
 
 export async function GET(request: NextRequest) {
-  const apiKey = process.env.VITE_WAQI_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: "Missing VITE_WAQI_KEY" }, { status: 500 })
-  }
-
   const city = request.nextUrl.searchParams.get("city") ?? "new delhi"
 
   const fallbackPayload = {
@@ -116,8 +128,16 @@ export async function GET(request: NextRequest) {
     previousPollutants: null,
   }
 
+  const apiKey = resolveWaqiApiKey()
+  if (!apiKey) {
+    return NextResponse.json(
+      { ...fallbackPayload, warning: "Missing WAQI API key on server" },
+      { status: 200 },
+    )
+  }
+
   try {
-    const weatherKey = process.env.VITE_WEATHER_KEY
+    const weatherKey = resolveWeatherApiKey()
     let resolvedCoords: { lat: number; lon: number } | null = null
 
     const url = `${WAQI_BASE}/${encodeURIComponent(city)}/?token=${apiKey}`
