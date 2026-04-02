@@ -7,8 +7,13 @@ const OPEN_WEATHER_AIR_HISTORY = "https://api.openweathermap.org/data/2.5/air_po
 function resolveWeatherApiKey() {
   return (
     process.env.WEATHER_API_KEY
+    ?? process.env.WEATHER_KEY
     ?? process.env.OPENWEATHER_API_KEY
+    ?? process.env.OPENWEATHER_KEY
+    ?? process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY
     ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_WEATHER_KEY
     ?? process.env.VITE_WEATHER_KEY
   )
 }
@@ -16,6 +21,8 @@ function resolveWeatherApiKey() {
 function resolveWaqiApiKey() {
   return (
     process.env.WAQI_API_KEY
+    ?? process.env.WAQI_KEY
+    ?? process.env.NEXT_PUBLIC_WAQI_KEY
     ?? process.env.NEXT_PUBLIC_WAQI_API_KEY
     ?? process.env.VITE_WAQI_KEY
   )

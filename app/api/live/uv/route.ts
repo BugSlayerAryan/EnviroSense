@@ -9,8 +9,13 @@ const OPEN_WEATHER_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
 function resolveWeatherApiKey() {
   return (
     process.env.WEATHER_API_KEY
+    ?? process.env.WEATHER_KEY
     ?? process.env.OPENWEATHER_API_KEY
+    ?? process.env.OPENWEATHER_KEY
+    ?? process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY
     ?? process.env.NEXT_PUBLIC_WEATHER_API_KEY
+    ?? process.env.NEXT_PUBLIC_WEATHER_KEY
     ?? process.env.VITE_WEATHER_KEY
   )
 }
