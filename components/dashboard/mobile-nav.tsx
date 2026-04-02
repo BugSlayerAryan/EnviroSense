@@ -4,6 +4,7 @@ import { LayoutDashboard, Wind, Cloud, Sun, Map, Bell, Bookmark } from "lucide-r
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -32,6 +33,14 @@ const itemVariants = {
 }
 
 export function MobileNav() {
+  return (
+    <Suspense fallback={null}>
+      <MobileNavClient />
+    </Suspense>
+  )
+}
+
+function MobileNavClient() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const city = searchParams.get("city")

@@ -2,8 +2,17 @@
 
 import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "framer-motion"
 import { usePathname, useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 
 export default function Template({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <TemplateContent>{children}</TemplateContent>
+    </Suspense>
+  )
+}
+
+function TemplateContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const prefersReducedMotion = useReducedMotion()

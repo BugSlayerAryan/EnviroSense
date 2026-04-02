@@ -6,6 +6,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { Suspense } from "react"
 import { reverseGeocodeCity } from "@/api/api"
 
 const menuItems = [
@@ -19,6 +20,27 @@ const menuItems = [
 ]
 
 export function Sidebar() {
+  return (
+    <Suspense fallback={<SidebarFallback />}>
+      <SidebarClient />
+    </Suspense>
+  )
+}
+
+function SidebarFallback() {
+  return (
+    <aside className="hidden h-full w-56 shrink-0 flex-col rounded-r-2xl border-r border-white/20 bg-white/50 px-4 py-5 backdrop-blur-xl lg:flex xl:w-64 dark:border-white/10 dark:bg-white/5">
+      <div className="mb-8 px-1 h-16 animate-pulse bg-white/20 dark:bg-white/10 rounded-lg" />
+      <div className="flex flex-col gap-2 space-y-1">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="h-10 animate-pulse bg-white/20 dark:bg-white/10 rounded-lg" />
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+function SidebarClient() {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()

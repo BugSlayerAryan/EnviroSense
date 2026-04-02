@@ -4,6 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { MapPinOff, RotateCcw, Search, Sparkles } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { Suspense } from "react"
 import { DashboardBackground } from "@/components/dashboard/background"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Navbar } from "@/components/dashboard/navbar"
@@ -14,6 +15,14 @@ export const dynamic = 'force-dynamic'
 const suggestedCities = ["Mumbai", "Delhi", "Bengaluru", "Kolkata", "Chennai"]
 
 export default function CityNotFoundPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CityNotFoundContent />
+    </Suspense>
+  )
+}
+
+function CityNotFoundContent() {
   const searchParams = useSearchParams()
   const city = searchParams.get("city")?.trim() || "Unknown city"
 
