@@ -2,7 +2,7 @@
 
 import { LocateFixed, Moon, RefreshCw, Search, Sun, UserRound } from "lucide-react"
 import { motion } from "framer-motion"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { Suspense } from "react"
 import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -126,77 +126,123 @@ function NavbarFallback() {
 
 function NavbarClient() {
   const DEFAULT_CITY = "New Delhi, India"
-  const INITIAL_LOCATION_CHECK_KEY = "envirosense-initial-location-check-v1"
   const { theme, setTheme } = useTheme()
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const didInitializeLocation = useRef(false)
   const [mounted, setMounted] = useState(false)
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState("")
-  const [searchValue, setSearchValue] = useState(
-    searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname) ?? DEFAULT_CITY,
-  )
+  const [searchValue, setSearchValue] = useState<string | null>(null) // Start as null, set after location detection
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    const currentRouteCity = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
-    const normalizedCity = (currentRouteCity ?? "").toLowerCase().replace(/\s+/g, " ").trim()
-    const isDefaultCityRoute = normalizedCity.startsWith("new delhi")
-
-    try {
-      if (window.sessionStorage.getItem(INITIAL_LOCATION_CHECK_KEY) === "1") {
-        return
-      }
-
-      window.sessionStorage.setItem(INITIAL_LOCATION_CHECK_KEY, "1")
-    } catch {
-      // If storage is unavailable, continue with best-effort behavior.
-    }
-
-    if (isDefaultCityRoute || !currentRouteCity) {
-      void handleUseCurrentLocation()
-    }
-    // Run once per browser session to avoid repeatedly overriding user-selected cities.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams])
-
-  useEffect(() => {
-    setSearchValue(searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname) ?? DEFAULT_CITY)
-  }, [pathname, searchParams])
-
-  const pushWithCity = useCallback((city: string) => {
+  const resolveRouteForCity = useCallback((city: string) => {
     const trimmed = city.trim()
-    if (!trimmed) return
+    if (!trimmed) return pathname
 
     if (pathname.startsWith("/weather")) {
-      router.push(buildCityRoute("/weather", trimmed))
-      return
+      return buildCityRoute("/weather", trimmed)
     }
 
     if (pathname.startsWith("/airqualit")) {
-      router.push(buildCityRoute("/airqualit", trimmed))
-      return
+      return buildCityRoute("/airqualit", trimmed)
     }
 
     if (pathname.startsWith("/uv-index")) {
-      router.push(buildCityRoute("/uv-index", trimmed))
-      return
+      return buildCityRoute("/uv-index", trimmed)
     }
 
     if (isDashboardRoute(pathname) || pathname === "/") {
-      router.push(buildDashboardRoute(trimmed))
-      return
+      return buildDashboardRoute(trimmed)
     }
 
     const params = new URLSearchParams(searchParams.toString())
     params.set("city", trimmed)
     const suffix = params.toString()
-    router.push(suffix ? `${pathname}?${suffix}` : pathname)
-  }, [pathname, router, searchParams])
+    return suffix ? `${pathname}?${suffix}` : pathname
+  }, [pathname, searchParams])
+
+  // Single effect: Determine initial city on mount (current location first, then fallback)
+  useEffect(() => {
+    if (didInitializeLocation.current) return
+    didInitializeLocation.current = true
+
+    const determineInitialCity = async () => {
+      const routeCity = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
+      const normalizedRouteCity = (routeCity ?? "").toLowerCase().replace(/\s+/g, " ").trim()
+      const shouldAutoDetectLocation = !routeCity || normalizedRouteCity.startsWith("new delhi")
+
+      if (!shouldAutoDetectLocation) {
+        setSearchValue(routeCity)
+        return
+      }
+
+      // Try to get current location automatically
+      if (!navigator.geolocation) {
+        // Geolocation not supported - use default
+        setSearchValue(DEFAULT_CITY)
+        router.replace(resolveRouteForCity(DEFAULT_CITY))
+        return
+      }
+
+      setIsDetectingLocation(true)
+
+      // Always try to detect current location on first load
+      await new Promise<void>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            try {
+              const reverse = await reverseGeocodeCity(position.coords.latitude, position.coords.longitude, true)
+              const detectedCity = reverse?.city || DEFAULT_CITY
+              setSearchValue(detectedCity)
+              setLocationError("")
+              router.replace(resolveRouteForCity(detectedCity))
+            } catch {
+              setSearchValue(DEFAULT_CITY)
+              router.replace(resolveRouteForCity(DEFAULT_CITY))
+            } finally {
+              setIsDetectingLocation(false)
+              resolve()
+            }
+          },
+          (error) => {
+            // Geolocation denied or failed - use default
+            if (error.code === error.PERMISSION_DENIED) {
+              setLocationError("Location access denied. Using New Delhi.")
+            } else {
+              setLocationError("Could not detect location. Using New Delhi.")
+            }
+            setSearchValue(DEFAULT_CITY)
+            router.replace(resolveRouteForCity(DEFAULT_CITY))
+            setIsDetectingLocation(false)
+            resolve()
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }, // timeout: 8s, maximumAge: 0 ensures fresh location
+        )
+      })
+    }
+
+    void determineInitialCity()
+  }, [pathname, router, searchParams, resolveRouteForCity])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Update searchValue when navigating to a different URL with city
+  useEffect(() => {
+    if (searchValue === null) return // Wait for initial city detection
+    
+    const urlCity = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
+    if (urlCity && urlCity !== searchValue) {
+      setSearchValue(urlCity)
+    }
+  }, [pathname, searchParams, searchValue])
+
+  const pushWithCity = useCallback((city: string) => {
+    const nextRoute = resolveRouteForCity(city)
+    router.push(nextRoute)
+  }, [resolveRouteForCity, router])
 
   const applyCityQuery = useCallback((city: string) => {
     pushWithCity(city)
@@ -204,6 +250,7 @@ function NavbarClient() {
 
   const handleSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!searchValue) return // Guard against null searchValue
     const trimmed = searchValue.trim()
     if (!trimmed) return
     setLocationError("")
@@ -265,7 +312,7 @@ function NavbarClient() {
         pushWithCity(DEFAULT_CITY)
         setIsDetectingLocation(false)
       },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 },
     )
   }, [applyCityQuery, pushWithCity])
 
@@ -278,7 +325,7 @@ function NavbarClient() {
 
         <div className="-ml-2 flex min-w-0 flex-1 items-center sm:ml-0 lg:col-start-2 lg:col-end-3 lg:-ml-15 lg:justify-center">
           <SearchBar
-            value={searchValue}
+            value={searchValue ?? ""}
             onChange={setSearchValue}
             onSubmit={handleSearchSubmit}
             isDetectingLocation={isDetectingLocation}
