@@ -66,7 +66,7 @@ export default async function DashboardCityPage({ params }: DashboardCityPagePro
             </div>
 
             <div className="mb-2">
-              <HealthTipCard />
+              <HealthTipCard city={activeCity} />
             </div>
           </section>
         </div>
