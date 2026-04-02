@@ -7,26 +7,31 @@ import { useSearchParams } from "next/navigation"
 import { fetchWeatherData } from "@/api/api"
 import { WeatherMetricSkeleton } from "@/components/dashboard/loading-states"
 
-export function WeatherCard() {
+type WeatherCardProps = {
+  initialCity?: string
+}
+
+export function WeatherCard({ initialCity }: WeatherCardProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
-  const [temp, setTemp] = useState(29)
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, IN"
+  const [temp, setTemp] = useState<number | null>(null)
   const [isFahrenheit, setIsFahrenheit] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [condition, setCondition] = useState("Partly Cloudy")
-  const [humidity, setHumidity] = useState(58)
-  const [windKmh, setWindKmh] = useState(12)
-  const [rainChance, setRainChance] = useState(20)
+  const [condition, setCondition] = useState<string | null>(null)
+  const [humidity, setHumidity] = useState<number | null>(null)
+  const [windKmh, setWindKmh] = useState<number | null>(null)
+  const [rainChance, setRainChance] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const getWeatherIcon = () => {
+    if (temp === null) return null
     if (temp >= 25) return <Sun className="h-10 w-10 text-yellow-400 dark:text-yellow-300" />
     if (temp >= 15) return <CloudSun className="h-10 w-10 text-blue-400 dark:text-white/80" />
     if (temp >= 5) return <Cloud className="h-10 w-10 text-gray-400 dark:text-gray-300" />
     return <CloudSnow className="h-10 w-10 text-blue-200 dark:text-blue-300" />
   }
 
-  const displayTemp = isFahrenheit ? Math.round((temp * 9/5) + 32) : temp
+  const displayTemp = temp === null ? "--" : isFahrenheit ? Math.round((temp * 9/5) + 32) : temp
   const tempUnit = isFahrenheit ? "°F" : "°C"
 
   const handleRefresh = async (requestedCity?: string) => {
@@ -34,13 +39,21 @@ export function WeatherCard() {
     setIsLoading(true)
     try {
       const data = await fetchWeatherData(requestedCity ?? cityQuery)
-      if (typeof data?.temp === "number") setTemp(Math.round(data.temp))
-      if (typeof data?.humidity === "number") setHumidity(data.humidity)
-      if (typeof data?.windKmh === "number") setWindKmh(Math.round(data.windKmh))
-      if (typeof data?.humidity === "number") setRainChance(Math.min(100, Math.max(0, Math.round(data.humidity * 0.35))))
-      if (data?.condition) setCondition(data.condition)
+      setTemp(typeof data?.temp === "number" ? Math.round(data.temp) : null)
+      setHumidity(typeof data?.humidity === "number" ? data.humidity : null)
+      setWindKmh(typeof data?.windKmh === "number" ? Math.round(data.windKmh) : null)
+      if (Array.isArray(data?.hourly) && data.hourly.length > 0 && typeof data.hourly[0]?.rainChance === "number") {
+        setRainChance(Math.min(100, Math.max(0, Math.round(data.hourly[0].rainChance))))
+      } else {
+        setRainChance(null)
+      }
+      setCondition(typeof data?.condition === "string" ? data.condition : null)
     } catch {
-      // Keep previous values on transient API failure.
+      setTemp(null)
+      setHumidity(null)
+      setWindKmh(null)
+      setRainChance(null)
+      setCondition(null)
     }
     setIsRefreshing(false)
     setIsLoading(false)
@@ -85,7 +98,7 @@ export function WeatherCard() {
                 <p className="text-5xl font-bold text-blue-600 dark:text-blue-300 sm:text-7xl">{displayTemp}</p>
                 <p className="text-base font-semibold text-blue-600 dark:text-blue-300 sm:text-xl">{tempUnit}</p>
               </div>
-              <p className="mt-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 tracking-wide">{condition}</p>
+              <p className="mt-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300 tracking-wide">{condition ?? "--"}</p>
               <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Weather conditions summary</p>
             </div>
           </div>
@@ -96,17 +109,17 @@ export function WeatherCard() {
         <div className="group rounded-lg border border-white/30 bg-white/30 p-2.5 transition-all dark:border-white/10 dark:bg-white/5 hover:bg-white/40 dark:hover:bg-white/10 sm:p-3">
           <Droplets className="mb-1.5 h-5 w-5 text-blue-500 dark:text-blue-400 transition-transform group-hover:scale-110" />
           <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Humidity</p>
-          <p className="mt-1 text-base font-bold text-gray-900 dark:text-white sm:text-lg">{humidity}%</p>
+          <p className="mt-1 text-base font-bold text-gray-900 dark:text-white sm:text-lg">{humidity === null ? "--" : `${humidity}%`}</p>
         </div>
         <div className="group rounded-lg border border-white/30 bg-white/30 p-2.5 transition-all dark:border-white/10 dark:bg-white/5 hover:bg-white/40 dark:hover:bg-white/10 sm:p-3">
           <Wind className="mb-1.5 h-5 w-5 text-blue-500 dark:text-blue-400 transition-transform group-hover:scale-110" />
           <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Wind</p>
-          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white sm:text-base">{windKmh} km/h</p>
+          <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white sm:text-base">{windKmh === null ? "--" : `${windKmh} km/h`}</p>
         </div>
         <div className="group rounded-lg border border-white/30 bg-white/30 p-2.5 transition-all dark:border-white/10 dark:bg-white/5 hover:bg-white/40 dark:hover:bg-white/10 sm:p-3">
           <CloudRain className="mb-1.5 h-5 w-5 text-blue-500 dark:text-blue-400 transition-transform group-hover:scale-110" />
           <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Rainfall</p>
-          <p className="mt-1 text-base font-bold text-gray-900 dark:text-white sm:text-lg">{rainChance}%</p>
+          <p className="mt-1 text-base font-bold text-gray-900 dark:text-white sm:text-lg">{rainChance === null ? "--" : `${rainChance}%`}</p>
         </div>
       </div>
     </motion.div>

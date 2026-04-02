@@ -18,7 +18,7 @@ function formatCityLabel(city: string) {
 
 export function EnvironmentScore({ city }: EnvironmentScoreProps) {
   const searchParams = useSearchParams()
-  const activeCity = city ?? searchParams.get("city") ?? "Current location"
+  const activeCity = city ?? searchParams.get("city") ?? "New Delhi, India"
   const cityLabel = formatCityLabel(activeCity)
 
   const [data, setData] = useState<EnvironmentalData | null>(null)
@@ -33,17 +33,18 @@ export function EnvironmentScore({ city }: EnvironmentScoreProps) {
         setLoading(true)
         setError(null)
 
-        // Fetch AQI data
-        const aqiRes = await fetch(`/api/live/aqi?city=${encodeURIComponent(activeCity)}`)
-        const aqiData = aqiRes.ok ? await aqiRes.json() : {}
+        const cityForApi = activeCity.trim() || "New Delhi, India"
+        const [aqiRes, weatherRes, uvRes] = await Promise.all([
+          fetch(`/api/live/aqi?city=${encodeURIComponent(cityForApi)}`),
+          fetch(`/api/live/weather?city=${encodeURIComponent(cityForApi)}`),
+          fetch(`/api/live/uv?city=${encodeURIComponent(cityForApi)}`),
+        ])
 
-        // Fetch weather data
-        const weatherRes = await fetch(`/api/live/weather?city=${encodeURIComponent(activeCity)}`)
-        const weatherData = weatherRes.ok ? await weatherRes.json() : {}
-
-        // Fetch UV data
-        const uvRes = await fetch(`/api/live/uv?city=${encodeURIComponent(activeCity)}`)
-        const uvData = uvRes.ok ? await uvRes.json() : {}
+        const [aqiData, weatherData, uvData] = await Promise.all([
+          aqiRes.ok ? aqiRes.json() : Promise.resolve({}),
+          weatherRes.ok ? weatherRes.json() : Promise.resolve({}),
+          uvRes.ok ? uvRes.json() : Promise.resolve({}),
+        ])
 
         // Extract relevant fields
         const environmentalData: EnvironmentalData = {

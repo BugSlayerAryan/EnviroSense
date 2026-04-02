@@ -13,30 +13,9 @@ import { fetchUvData } from "@/api/api"
 import { useSearchParams } from "next/navigation"
 import { UvDashboardSkeleton } from "@/components/dashboard/loading-states"
 
-const hourlyUvData: HourlyUvPoint[] = [
-  { time: "07:00", hour24: 7, uv: 0.8 },
-  { time: "08:00", hour24: 8, uv: 1.6 },
-  { time: "09:00", hour24: 9, uv: 3.4 },
-  { time: "10:00", hour24: 10, uv: 5.8 },
-  { time: "11:00", hour24: 11, uv: 8.4 },
-  { time: "12:00", hour24: 12, uv: 10.2 },
-  { time: "13:00", hour24: 13, uv: 9.7 },
-  { time: "14:00", hour24: 14, uv: 8.3 },
-  { time: "15:00", hour24: 15, uv: 6.2 },
-  { time: "16:00", hour24: 16, uv: 3.7 },
-  { time: "17:00", hour24: 17, uv: 1.9 },
-  { time: "18:00", hour24: 18, uv: 0.9 },
-]
+const hourlyUvData: HourlyUvPoint[] = []
 
-const weeklyUvData: DailyUvPoint[] = [
-  { day: "Mon", uvMax: 9.7 },
-  { day: "Tue", uvMax: 8.8 },
-  { day: "Wed", uvMax: 10.4 },
-  { day: "Thu", uvMax: 7.1 },
-  { day: "Fri", uvMax: 9.1 },
-  { day: "Sat", uvMax: 6.4 },
-  { day: "Sun", uvMax: 8.2 },
-]
+const weeklyUvData: DailyUvPoint[] = []
 
 function DashboardSkeleton() {
   return (
@@ -48,14 +27,18 @@ function DashboardSkeleton() {
   )
 }
 
-export function UvDashboard() {
+type UvDashboardProps = {
+  initialCity?: string
+}
+
+export function UvDashboard({ initialCity }: UvDashboardProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, India"
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [skinType, setSkinType] = useState("Type III")
-  const [currentUv, setCurrentUv] = useState(9.7)
-  const [location, setLocation] = useState("New Delhi, India")
+  const [currentUv, setCurrentUv] = useState<number | null>(null)
+  const [location, setLocation] = useState<string | null>(null)
   const [hourlyData, setHourlyData] = useState<HourlyUvPoint[]>(hourlyUvData)
   const [weeklyData, setWeeklyData] = useState<DailyUvPoint[]>(weeklyUvData)
 
@@ -73,21 +56,15 @@ export function UvDashboard() {
     setError(null)
     setLoading(true)
     try {
-      const selectedCity = requestedCity ?? location
+      const selectedCity = requestedCity ?? location ?? cityQuery
       const data = await fetchUvData(selectedCity)
-      if (typeof data?.currentUv === "number") {
-        setCurrentUv(data.currentUv)
-      }
-      if (Array.isArray(data?.hourly) && data.hourly.length > 0) {
-        setHourlyData(data.hourly)
-      }
-      if (Array.isArray(data?.weekly) && data.weekly.length > 0) {
-        setWeeklyData(data.weekly)
-      }
+      setCurrentUv(typeof data?.currentUv === "number" ? data.currentUv : null)
+      setHourlyData(Array.isArray(data?.hourly) ? data.hourly : [])
+      setWeeklyData(Array.isArray(data?.weekly) ? data.weekly : [])
       if (data?.location) {
         setLocation(data.location)
       } else {
-        setLocation(selectedCity)
+        setLocation(null)
       }
     } catch {
       setError("Unable to fetch UV index data.")

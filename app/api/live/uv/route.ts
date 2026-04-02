@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
+import {
+  formatLocalDayLabel,
+  formatLocalHour,
+  formatLocalHour24,
+  resolveOpenMeteoCity,
+} from "@/lib/open-meteo"
 
 const OPEN_WEATHER_GEO = "https://api.openweathermap.org/geo/1.0/direct"
 const ONE_CALL_V3 = "https://api.openweathermap.org/data/3.0/onecall"
 const ONE_CALL_V25 = "https://api.openweathermap.org/data/2.5/onecall"
 const OPEN_WEATHER_CURRENT = "https://api.openweathermap.org/data/2.5/weather"
 const OPEN_WEATHER_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
+const OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast"
 
 function resolveWeatherApiKey() {
   return (
@@ -20,30 +27,9 @@ function resolveWeatherApiKey() {
   )
 }
 
-const DEFAULT_HOURLY = [
-  { time: "07:00", hour24: 7, uv: 0.8 },
-  { time: "08:00", hour24: 8, uv: 1.6 },
-  { time: "09:00", hour24: 9, uv: 3.4 },
-  { time: "10:00", hour24: 10, uv: 5.8 },
-  { time: "11:00", hour24: 11, uv: 8.4 },
-  { time: "12:00", hour24: 12, uv: 10.2 },
-  { time: "13:00", hour24: 13, uv: 9.7 },
-  { time: "14:00", hour24: 14, uv: 8.3 },
-  { time: "15:00", hour24: 15, uv: 6.2 },
-  { time: "16:00", hour24: 16, uv: 3.7 },
-  { time: "17:00", hour24: 17, uv: 1.9 },
-  { time: "18:00", hour24: 18, uv: 0.9 },
-]
+const DEFAULT_HOURLY: Array<{ time: string; hour24: number; uv: number; slotLabel?: string }> = []
 
-const DEFAULT_WEEKLY = [
-  { day: "Mon", uvMax: 9.7 },
-  { day: "Tue", uvMax: 8.8 },
-  { day: "Wed", uvMax: 10.4 },
-  { day: "Thu", uvMax: 7.1 },
-  { day: "Fri", uvMax: 9.1 },
-  { day: "Sat", uvMax: 6.4 },
-  { day: "Sun", uvMax: 8.2 },
-]
+const DEFAULT_WEEKLY: Array<{ day: string; uvMax: number }> = []
 
 function toFiniteNumber(value: unknown, fallback = 0) {
   const parsed = Number(value)
@@ -70,11 +56,12 @@ function estimateUvByLocalHour(hour24: number, cloudPercent: number) {
   return Number(Math.max(0, estimated).toFixed(1))
 }
 
-function toHourLabel(unixTime: number) {
-  return new Date(unixTime * 1000).toLocaleTimeString("en-GB", {
+function toHourLabel(unixTime: number, timezoneOffsetSeconds = 0) {
+  return new Date((unixTime + timezoneOffsetSeconds) * 1000).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "UTC",
   })
 }
 
@@ -88,6 +75,61 @@ function toLocalHour(unixTime: number, timezoneOffsetSeconds = 0) {
 
 function toLocalDayLabel(unixTime: number, timezoneOffsetSeconds = 0) {
   return new Date((unixTime + timezoneOffsetSeconds) * 1000).toLocaleDateString("en-US", { weekday: "short" })
+}
+
+function toSlotLabel(unixTime: number, timezoneOffsetSeconds = 0) {
+  return `${toLocalDayLabel(unixTime, timezoneOffsetSeconds)} ${toHourLabel(unixTime, timezoneOffsetSeconds)}`
+}
+
+function daylightHoursFromIso(sunrise?: string | null, sunset?: string | null) {
+  if (!sunrise || !sunset) return null
+  const sunriseMs = new Date(sunrise).getTime()
+  const sunsetMs = new Date(sunset).getTime()
+  if (!Number.isFinite(sunriseMs) || !Number.isFinite(sunsetMs) || sunsetMs <= sunriseMs) return null
+  return Number(((sunsetMs - sunriseMs) / (1000 * 60 * 60)).toFixed(1))
+}
+
+async function tryOpenMeteoUv(city: string) {
+  const location = await resolveOpenMeteoCity(city)
+  if (!location) return null
+
+  const forecastUrl = `${OPEN_METEO_FORECAST}?latitude=${location.latitude}&longitude=${location.longitude}&current=uv_index,temperature_2m,weather_code&hourly=uv_index,cloud_cover&daily=uv_index_max,sunrise,sunset&timezone=auto&forecast_days=7`
+  const response = await fetch(forecastUrl, { cache: "no-store" })
+  if (!response.ok) return null
+
+  const data = await response.json()
+  const timeZone = data?.timezone ?? location.timezone ?? "UTC"
+  const hourlyTimes = Array.isArray(data?.hourly?.time) ? data.hourly.time : []
+  const dailyTimes = Array.isArray(data?.daily?.time) ? data.daily.time : []
+
+  const hourly = hourlyTimes.slice(0, 12).map((time: string, index: number) => {
+    const uv = typeof data?.hourly?.uv_index?.[index] === "number" ? Number(data.hourly.uv_index[index].toFixed(1)) : 0
+    return {
+      time: formatLocalHour(time, timeZone),
+      hour24: Number(formatLocalHour24(time, timeZone)),
+      uv,
+      slotLabel: `${formatLocalDayLabel(time, timeZone)} ${formatLocalHour(time, timeZone)}`,
+    }
+  })
+
+  const weekly = dailyTimes.slice(0, 7).map((time: string, index: number) => ({
+    day: formatLocalDayLabel(time, timeZone),
+    uvMax: typeof data?.daily?.uv_index_max?.[index] === "number" ? Number(data.daily.uv_index_max[index].toFixed(1)) : 0,
+  }))
+
+  const sunrise = data?.daily?.sunrise?.[0] ?? null
+  const sunset = data?.daily?.sunset?.[0] ?? null
+
+  return {
+    location: location.country ? `${location.name}, ${location.country}` : location.name,
+    currentUv: typeof data?.current?.uv_index === "number" ? Number(data.current.uv_index.toFixed(1)) : 0,
+    hourly: hourly.length > 0 ? hourly : [],
+    weekly: weekly.length > 0 ? weekly : [],
+    sunlightHours: daylightHoursFromIso(sunrise, sunset),
+    estimatedRadiationWm2: typeof data?.current?.uv_index === "number" ? Number((data.current.uv_index * 20).toFixed(0)) : null,
+    updatedAt: new Date().toISOString(),
+    provider: "open-meteo",
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -104,6 +146,15 @@ export async function GET(request: NextRequest) {
   }
 
   const apiKey = resolveWeatherApiKey()
+  try {
+    const openMeteoPayload = await tryOpenMeteoUv(city)
+    if (openMeteoPayload) {
+      return NextResponse.json(openMeteoPayload, { status: 200 })
+    }
+  } catch {
+    // Fall through to the OpenWeather path.
+  }
+
   if (!apiKey) {
     return NextResponse.json(
       { ...fallbackPayload, warning: "Missing weather API key on server" },
@@ -175,9 +226,10 @@ export async function GET(request: NextRequest) {
             const cloud = toFiniteNumber(item?.clouds?.all, cloudPercent)
             const uv = estimateUvByLocalHour(localHour, cloud)
             return {
-              time: toHourLabel(dt),
+              time: toHourLabel(dt, timezoneOffset),
               hour24: localHour,
               uv,
+              slotLabel: toSlotLabel(dt, timezoneOffset),
             }
           }).filter((item: any) => Number.isFinite(item.hour24) && Number.isFinite(item.uv))
 
@@ -231,11 +283,13 @@ export async function GET(request: NextRequest) {
     }
 
     const hourly = (oneCallData?.hourly ?? []).slice(0, 12).map((item: any) => {
-      const date = new Date(item.dt * 1000)
+      const timezoneOffset = typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0
+      const dt = toFiniteNumber(item?.dt, 0)
       return {
-        time: toHourLabel(item.dt),
-        hour24: date.getHours(),
+        time: toHourLabel(dt, timezoneOffset),
+        hour24: toLocalHour(dt, timezoneOffset),
         uv: toFiniteNumber(item?.uvi, 0),
+        slotLabel: toSlotLabel(dt, timezoneOffset),
       }
     }).filter((item: any) => Number.isFinite(item.hour24) && Number.isFinite(item.uv))
 

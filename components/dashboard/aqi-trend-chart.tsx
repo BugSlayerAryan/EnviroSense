@@ -79,9 +79,13 @@ function AqiTooltip({ active, payload }: any) {
   )
 }
 
-export function AqiTrendChart() {
+type AqiTrendChartProps = {
+  initialCity?: string
+}
+
+export function AqiTrendChart({ initialCity }: AqiTrendChartProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, IN"
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const strokeGradient = isDark ? "url(#aqiStrokeDark)" : "url(#aqiStroke)"

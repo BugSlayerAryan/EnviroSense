@@ -5,7 +5,7 @@ import { Clock3 } from "lucide-react"
 import { getExposureMinutes, getUvCategory, getUvToneClasses } from "@/components/dashboard/uvindex/utils"
 
 type UvExposureCardProps = {
-  uvValue: number
+  uvValue: number | null
   skinType: string
   onSkinTypeChange: (value: string) => void
 }
@@ -13,10 +13,11 @@ type UvExposureCardProps = {
 const skinTypes = ["Type I", "Type II", "Type III", "Type IV", "Type V", "Type VI"]
 
 export function UvExposureCard({ uvValue, skinType, onSkinTypeChange }: UvExposureCardProps) {
-  const safeMinutes = getExposureMinutes(uvValue, skinType)
-  const safetyProgress = Math.min((safeMinutes / 60) * 100, 100)
-  const category = getUvCategory(uvValue)
-  const isNightOrVeryLow = uvValue <= 0.3
+  const hasUvValue = typeof uvValue === "number"
+  const safeMinutes = hasUvValue ? getExposureMinutes(uvValue, skinType) : null
+  const safetyProgress = hasUvValue && safeMinutes !== null ? Math.min((safeMinutes / 60) * 100, 100) : 0
+  const category = hasUvValue ? getUvCategory(uvValue) : "--"
+  const isNightOrVeryLow = hasUvValue ? uvValue <= 0.3 : false
 
   return (
     <motion.section
@@ -62,13 +63,13 @@ export function UvExposureCard({ uvValue, skinType, onSkinTypeChange }: UvExposu
             <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-600 dark:bg-slate-700/50 dark:text-slate-300">
               {skinType}
             </span>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getUvToneClasses(uvValue)}`}>
-              UV {uvValue.toFixed(1)} {category}
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${hasUvValue ? getUvToneClasses(uvValue) : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+              UV {hasUvValue ? uvValue.toFixed(1) : "--"} {category}
             </span>
           </div>
         </div>
 
-        <p className="text-3xl font-black leading-none text-slate-900 dark:text-slate-50">{safeMinutes} min</p>
+        <p className="text-3xl font-black leading-none text-slate-900 dark:text-slate-50">{safeMinutes !== null ? `${safeMinutes} min` : "--"}</p>
 
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
           <motion.div
@@ -79,7 +80,9 @@ export function UvExposureCard({ uvValue, skinType, onSkinTypeChange }: UvExposu
           />
         </div>
         <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          {isNightOrVeryLow
+          {!hasUvValue
+            ? "UV exposure data is not available right now."
+            : isNightOrVeryLow
             ? "UV is very low right now. Exposure window is extended, but basic protection is still recommended."
             : "Higher UV means shorter safe exposure time without protection."}
         </p>

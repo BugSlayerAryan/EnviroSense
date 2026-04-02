@@ -4,14 +4,15 @@ import { motion } from "framer-motion"
 import { getProtectionTips, getUvCategory, getUvToneClasses } from "@/components/dashboard/uvindex/utils"
 
 type UvRecommendationsProps = {
-  uvValue: number
+  uvValue: number | null
 }
 
 export function UvRecommendations({ uvValue }: UvRecommendationsProps) {
-  const tips = getProtectionTips(uvValue)
-  const category = getUvCategory(uvValue)
-  const riskLabel = category === "Low" ? "Low Risk" : category === "Moderate" ? "Moderate Risk" : `${category} Risk`
-  const uvLabel = uvValue.toFixed(1)
+  const hasUvValue = typeof uvValue === "number"
+  const tips = hasUvValue ? getProtectionTips(uvValue) : []
+  const category = hasUvValue ? getUvCategory(uvValue) : "--"
+  const riskLabel = hasUvValue ? (category === "Low" ? "Low Risk" : category === "Moderate" ? "Moderate Risk" : `${category} Risk`) : "--"
+  const uvLabel = hasUvValue ? uvValue.toFixed(1) : "--"
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
@@ -23,13 +24,13 @@ export function UvRecommendations({ uvValue }: UvRecommendationsProps) {
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">Personalized precautions based on current UV intensity</p>
           <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">Current UV: {uvLabel} ({category})</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getUvToneClasses(uvValue)}`}>
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${hasUvValue ? getUvToneClasses(uvValue) : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
           {riskLabel}
         </span>
       </div>
 
       <div className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {tips.map((tip, index) => {
+        {hasUvValue ? tips.map((tip, index) => {
           const Icon = tip.icon
           return (
             <motion.article
@@ -52,7 +53,11 @@ export function UvRecommendations({ uvValue }: UvRecommendationsProps) {
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{tip.description}</p>
             </motion.article>
           )
-        })}
+        }) : (
+          <div className="sm:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+            UV recommendations are unavailable until a live reading is fetched.
+          </div>
+        )}
       </div>
     </section>
   )

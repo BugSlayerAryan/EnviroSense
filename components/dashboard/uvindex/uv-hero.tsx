@@ -5,14 +5,15 @@ import { MapPin } from "lucide-react"
 import { getUvCategory, getUvHealthMessage, getUvToneClasses } from "@/components/dashboard/uvindex/utils"
 
 type UvHeroProps = {
-  uvValue: number
-  location: string
+  uvValue: number | null
+  location: string | null
   currentTime: string
 }
 
 export function UvHero({ uvValue, location, currentTime }: UvHeroProps) {
-  const category = getUvCategory(uvValue)
-  const healthMessage = getUvHealthMessage(uvValue)
+  const hasUvValue = typeof uvValue === "number"
+  const category = hasUvValue ? getUvCategory(uvValue) : "--"
+  const healthMessage = hasUvValue ? getUvHealthMessage(uvValue) : "UV data is not available right now."
   const markerGradientClasses =
     category === "Low"
       ? "from-emerald-500 via-lime-400 to-emerald-600"
@@ -38,7 +39,7 @@ export function UvHero({ uvValue, location, currentTime }: UvHeroProps) {
     "left-[91.66%]",
     "left-[100%]",
   ]
-  const markerClass = markerClasses[Math.max(0, Math.min(12, Math.round(uvValue)))]
+  const markerClass = hasUvValue ? markerClasses[Math.max(0, Math.min(12, Math.round(uvValue)))] : "left-[0%]"
 
   return (
     <motion.section
@@ -55,8 +56,8 @@ export function UvHero({ uvValue, location, currentTime }: UvHeroProps) {
             <span className="ml-1.5 sm:ml-2">UV Index Dashboard</span>
           </h1>
           <div className="mt-2 flex items-end gap-2 sm:gap-3">
-            <span className="text-5xl font-black leading-none text-slate-900 dark:text-slate-50 sm:text-6xl">{uvValue.toFixed(1)}</span>
-            <span className={`mb-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${getUvToneClasses(uvValue)}`}>{category}</span>
+            <span className="text-5xl font-black leading-none text-slate-900 dark:text-slate-50 sm:text-6xl">{hasUvValue ? uvValue.toFixed(1) : "--"}</span>
+            <span className={`mb-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold sm:px-3 sm:text-xs ${hasUvValue ? getUvToneClasses(uvValue) : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>{category}</span>
           </div>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{healthMessage}</p>
 
@@ -72,8 +73,8 @@ export function UvHero({ uvValue, location, currentTime }: UvHeroProps) {
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-white shadow-sm" />
               </span>
-              <span className={`pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm ${getUvToneClasses(uvValue)}`}>
-                UV {uvValue.toFixed(1)}
+              <span className={`pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm ${hasUvValue ? getUvToneClasses(uvValue) : "border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+                UV {hasUvValue ? uvValue.toFixed(1) : "--"}
               </span>
               <span className={`pointer-events-none absolute -bottom-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 rounded-sm bg-linear-to-br ${markerGradientClasses} shadow-md`} />
             </div>
@@ -92,7 +93,7 @@ export function UvHero({ uvValue, location, currentTime }: UvHeroProps) {
           <p className="text-xs text-slate-500 dark:text-slate-400">Current Context</p>
           <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
             <MapPin className="h-4 w-4 text-sky-500" />
-            {location}
+            {location ?? "--"}
           </div>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{currentTime}</p>
         </div>

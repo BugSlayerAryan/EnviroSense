@@ -8,9 +8,13 @@ import { useSearchParams } from "next/navigation"
 import { fetchUvData } from "@/api/api"
 import { UvMetricSkeleton } from "@/components/dashboard/loading-states"
 
-export function UvCard() {
+type UvCardProps = {
+  initialCity?: string
+}
+
+export function UvCard({ initialCity }: UvCardProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, IN"
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [uv, setUv] = useState<number | null>(null)
   const [sunlightHours, setSunlightHours] = useState<number | null>(null)
@@ -91,7 +95,9 @@ export function UvCard() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-4xl font-bold text-gray-900 dark:text-white sm:text-5xl">{uv ?? "--"}</p>
-            <span className="mt-2 inline-flex rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">{uvLabel}</span>
+            <span className="mt-2 inline-flex rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-500/20 dark:text-orange-300">
+              {uv === null ? "--" : uvLabel}
+            </span>
           </div>
           <Sun className="mt-1 h-10 w-10 text-yellow-500 dark:text-yellow-400 sm:h-12 sm:w-12" />
         </div>
@@ -100,11 +106,11 @@ export function UvCard() {
       <div className="mt-auto space-y-2 text-xs text-gray-600 dark:text-gray-400 sm:space-y-2.5">
         <div className="flex items-center justify-between rounded-lg border border-white/20 bg-white/20 px-3 py-2 dark:border-white/10 dark:bg-white/5">
           <span className="flex items-center gap-2"><Sun className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />Sunlight</span>
-          <strong className="text-gray-900 dark:text-white">{computedSunlight} hrs</strong>
+          <strong className="text-gray-900 dark:text-white">{sunlightHours === null ? "--" : `${computedSunlight} hrs`}</strong>
         </div>
         <div className="flex items-center justify-between rounded-lg border border-white/20 bg-white/20 px-3 py-2 dark:border-white/10 dark:bg-white/5">
           <span className="flex items-center gap-2"><Radiation className="h-4 w-4 text-orange-500 dark:text-orange-400" />Radiation</span>
-          <strong className="text-gray-900 dark:text-white">{computedRadiation} W/m²</strong>
+          <strong className="text-gray-900 dark:text-white">{radiation === null ? "--" : `${computedRadiation} W/m²`}</strong>
         </div>
       </div>
 

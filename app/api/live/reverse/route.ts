@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { reverseOpenMeteoLocation } from "@/lib/open-meteo"
 
 const OPEN_WEATHER_REVERSE = "https://api.openweathermap.org/geo/1.0/reverse"
 
@@ -18,18 +19,37 @@ function resolveWeatherApiKey() {
 
 export async function GET(request: NextRequest) {
   const apiKey = resolveWeatherApiKey()
-  if (!apiKey) {
-    return NextResponse.json(
-      { city: null, warning: "Missing weather API key on server" },
-      { status: 200 },
-    )
-  }
-
   const lat = request.nextUrl.searchParams.get("lat")
   const lon = request.nextUrl.searchParams.get("lon")
 
   if (!lat || !lon) {
     return NextResponse.json({ error: "Missing lat/lon" }, { status: 400 })
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lon)
+
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    try {
+      const location = await reverseOpenMeteoLocation(latitude, longitude)
+      if (location) {
+        return NextResponse.json(
+          {
+            city: location.country ? `${location.name}, ${location.country}` : location.name,
+          },
+          { status: 200 },
+        )
+      }
+    } catch {
+      // Fall through to the OpenWeather fallback.
+    }
+  }
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { city: null, warning: "Missing weather API key on server" },
+      { status: 200 },
+    )
   }
 
   try {

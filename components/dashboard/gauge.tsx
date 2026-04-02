@@ -24,52 +24,57 @@ export function SemiCircleGauge({
 }: GaugeProps) {
   const gradientId = useId()
 
-  const safeMax = Math.max(max, 1)
-  const clampedValue = Math.min(Math.max(value, 0), safeMax)
-  const radius = (size - strokeWidth) / 2
+  const safeSize = Number.isFinite(size) ? size : 184
+  const safeStrokeWidth = Number.isFinite(strokeWidth) ? strokeWidth : 14
+  const safeMax = Number.isFinite(max) ? Math.max(max, 1) : 1
+  const safeValue = Number.isFinite(value) ? value : 0
+  const clampedValue = Math.min(Math.max(safeValue, 0), safeMax)
+  const radius = (safeSize - safeStrokeWidth) / 2
   const circumference = Math.PI * radius
   const percentage = clampedValue / safeMax
   const dashOffset = circumference * (1 - percentage)
 
-  const centerX = size / 2
-  const centerY = size / 2 + 10
+  const centerX = safeSize / 2
+  const centerY = safeSize / 2 + 10
 
   // 0 -> left edge of arc, 180 -> right edge of arc.
   const gaugeAngle = percentage * 180
   const arcAngle = 180 - gaugeAngle
-  const needleLength = radius - strokeWidth * 0.35
+  const needleLength = radius - safeStrokeWidth * 0.35
   const needleX = centerX + needleLength * Math.cos((arcAngle * Math.PI) / 180)
   const needleY = centerY - needleLength * Math.sin((arcAngle * Math.PI) / 180)
-  const svgHeight = Math.round(size / 2 + strokeWidth + 16)
+  const svgHeight = Math.round(safeSize / 2 + safeStrokeWidth + 16)
+  const safeColors = colors.length > 0 ? colors : ["#22c55e", "#eab308", "#f97316"]
+  const colorDivisor = Math.max(safeColors.length - 1, 1)
 
   return (
     <div className="flex w-full max-w-57.5 flex-col items-center justify-center gap-2">
       <div className="relative w-full">
         <div className="pointer-events-none absolute inset-0 rounded-full bg-linear-to-r from-emerald-300/12 via-yellow-300/10 to-orange-300/12 blur-xl" />
 
-        <svg width={size} height={svgHeight} viewBox={`0 0 ${size} ${svgHeight}`} className="mx-auto drop-shadow-[0_8px_20px_rgba(15,23,42,0.16)]">
+        <svg width={safeSize} height={svgHeight} viewBox={`0 0 ${safeSize} ${svgHeight}`} className="mx-auto drop-shadow-[0_8px_20px_rgba(15,23,42,0.16)]">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-              {colors.map((color, i) => (
-                <stop key={i} offset={`${(i / (colors.length - 1)) * 100}%`} stopColor={color} />
+              {safeColors.map((color, i) => (
+                <stop key={i} offset={`${(i / colorDivisor) * 100}%`} stopColor={color} />
               ))}
             </linearGradient>
           </defs>
 
           <path
-            d={`M ${strokeWidth / 2} ${centerY} A ${radius} ${radius} 0 0 1 ${size - strokeWidth / 2} ${centerY}`}
+            d={`M ${safeStrokeWidth / 2} ${centerY} A ${radius} ${radius} 0 0 1 ${safeSize - safeStrokeWidth / 2} ${centerY}`}
             fill="none"
             stroke="currentColor"
-            strokeWidth={strokeWidth}
+            strokeWidth={safeStrokeWidth}
             strokeLinecap="round"
             className="text-slate-200/90 dark:text-slate-700/70"
           />
 
           <motion.path
-            d={`M ${strokeWidth / 2} ${centerY} A ${radius} ${radius} 0 0 1 ${size - strokeWidth / 2} ${centerY}`}
+            d={`M ${safeStrokeWidth / 2} ${centerY} A ${radius} ${radius} 0 0 1 ${safeSize - safeStrokeWidth / 2} ${centerY}`}
             fill="none"
             stroke={`url(#${gradientId})`}
-            strokeWidth={strokeWidth}
+            strokeWidth={safeStrokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
@@ -77,17 +82,15 @@ export function SemiCircleGauge({
             transition={{ duration: 1.1, ease: "easeOut" }}
           />
 
-          <motion.line
+          <line
             x1={centerX}
             y1={centerY}
-            x2={centerX}
-            y2={centerY}
+            x2={Number.isFinite(needleX) ? needleX : centerX}
+            y2={Number.isFinite(needleY) ? needleY : centerY}
             stroke="currentColor"
             strokeWidth={3.5}
             strokeLinecap="round"
             className="text-slate-900 drop-shadow-[0_0_10px_rgba(15,23,42,0.35)] dark:text-white"
-            animate={{ x2: needleX, y2: needleY }}
-            transition={{ type: "spring", stiffness: 130, damping: 18, delay: 0.15 }}
           />
 
           <circle

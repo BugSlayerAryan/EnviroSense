@@ -1,12 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowRight, MapPin, Plus, Search, Trash2 } from "lucide-react"
 import { DashboardBackground } from "@/components/dashboard/background"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
+import { buildDashboardRoute } from "@/lib/location-route"
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +19,7 @@ function normalizeCity(value: string) {
 }
 
 export default function SaveCityPage() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [cities, setCities] = useState<string[]>([])
@@ -62,6 +65,7 @@ export default function SaveCityPage() {
     setError(null)
     setCities((current) => [cityName, ...current])
     setInputValue("")
+    router.push(buildDashboardRoute(cityName))
   }
 
   const removeCity = (cityName: string) => {
@@ -93,9 +97,9 @@ export default function SaveCityPage() {
                   <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
                     Save City
                   </h1>
-                  <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                  {/* <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
                     Add cities to local storage for quick access across the app. No backend required.
-                  </p>
+                  </p> */}
                 </div>
 
                 <div className="inline-flex rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800/85 dark:text-slate-300">
@@ -158,7 +162,8 @@ export default function SaveCityPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.22 }}
                       whileHover={{ y: -2 }}
-                      className="flex h-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(15,23,42,0.1)] dark:border-slate-700 dark:bg-slate-800/85"
+                      onClick={() => router.push(buildDashboardRoute(city))}
+                      className="flex h-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(15,23,42,0.1)] dark:border-slate-700 dark:bg-slate-800/85"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-linear-to-br from-sky-100 to-cyan-100 text-sky-600 shadow-sm dark:from-sky-500/20 dark:to-cyan-500/15 dark:text-sky-300">
@@ -172,7 +177,10 @@ export default function SaveCityPage() {
 
                       <button
                         type="button"
-                        onClick={() => removeCity(city)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeCity(city)
+                        }}
                         className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

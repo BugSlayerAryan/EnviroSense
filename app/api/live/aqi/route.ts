@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import {
+  formatLocalDateKey,
+  resolveOpenMeteoCity,
+  weekdayFromDateKey,
+} from "@/lib/open-meteo"
 
 const WAQI_BASE = "https://api.waqi.info/feed"
 const OPEN_WEATHER_GEO = "https://api.openweathermap.org/geo/1.0/direct"
 const OPEN_WEATHER_AIR_HISTORY = "https://api.openweathermap.org/data/2.5/air_pollution/history"
+const OPEN_METEO_AIR_QUALITY = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 function resolveWeatherApiKey() {
   return (
@@ -41,6 +47,21 @@ type AqiTrendPoint = {
   date: string
   day: string
   aqi: number | null
+}
+
+type HourlyAqiPoint = {
+  time: string
+  aqi: number | null
+}
+
+type OpenMeteoAqiBucket = {
+  usAqi: number[]
+  pm25: number[]
+  pm10: number[]
+  co: number[]
+  no2: number[]
+  so2: number[]
+  o3: number[]
 }
 
 function toNumber(value: unknown) {
@@ -228,6 +249,132 @@ async function fetchAqiTrend(lat: number, lon: number, weatherKey: string): Prom
   }
 }
 
+function average(values: number[]) {
+  if (values.length === 0) return null
+  const total = values.reduce((sum, value) => sum + value, 0)
+  return total / values.length
+}
+
+async function tryOpenMeteoAqi(city: string) {
+  const location = await resolveOpenMeteoCity(city)
+  if (!location) return null
+
+  const airQualityUrl = `${OPEN_METEO_AIR_QUALITY}?latitude=${location.latitude}&longitude=${location.longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto&past_days=7&forecast_days=1`
+  const response = await fetch(airQualityUrl, { cache: "no-store" })
+  if (!response.ok) return null
+
+  const data = await response.json()
+  const timeZone = data?.timezone ?? location.timezone ?? "UTC"
+  const hourlyTimes = Array.isArray(data?.hourly?.time) ? data.hourly.time : []
+  const grouped = new Map<string, OpenMeteoAqiBucket>()
+
+  for (let index = 0; index < hourlyTimes.length; index += 1) {
+    const time = hourlyTimes[index]
+    const key = formatLocalDateKey(time, timeZone)
+    const bucket = grouped.get(key) ?? {
+      usAqi: [],
+      pm25: [],
+      pm10: [],
+      co: [],
+      no2: [],
+      so2: [],
+      o3: [],
+    }
+
+    const append = (values: number[], raw: unknown) => {
+      if (typeof raw === "number" && Number.isFinite(raw)) {
+        values.push(raw)
+      }
+    }
+
+    append(bucket.usAqi, data?.hourly?.us_aqi?.[index])
+    append(bucket.pm25, data?.hourly?.pm2_5?.[index])
+    append(bucket.pm10, data?.hourly?.pm10?.[index])
+    append(bucket.co, data?.hourly?.carbon_monoxide?.[index])
+    append(bucket.no2, data?.hourly?.nitrogen_dioxide?.[index])
+    append(bucket.so2, data?.hourly?.sulphur_dioxide?.[index])
+    append(bucket.o3, data?.hourly?.ozone?.[index])
+
+    grouped.set(key, bucket)
+  }
+
+  const sortedKeys = Array.from(grouped.keys()).sort()
+  const trendKeys = sortedKeys.slice(-7)
+  const trend: AqiTrendPoint[] = trendKeys.map((key) => {
+    const bucket = grouped.get(key)
+    const meanUsAqi = average(bucket?.usAqi ?? [])
+    const meanPm25 = average(bucket?.pm25 ?? [])
+    const meanPm10 = average(bucket?.pm10 ?? [])
+    const aqi = typeof meanUsAqi === "number"
+      ? Math.round(meanUsAqi)
+      : calculateDailyAqi(
+          typeof meanPm25 === "number" ? meanPm25 : null,
+          typeof meanPm10 === "number" ? meanPm10 : null,
+        )
+
+    return {
+      date: key,
+      day: weekdayFromDateKey(key),
+      aqi,
+    }
+  })
+
+  const latestKey = trendKeys[trendKeys.length - 1] ?? null
+  const previousKey = trendKeys[trendKeys.length - 2] ?? latestKey
+  const latestBucket = latestKey ? grouped.get(latestKey) : null
+  const previousBucket = previousKey ? grouped.get(previousKey) : null
+
+  const hourly: HourlyAqiPoint[] = []
+  for (let index = 0; index < hourlyTimes.length; index += 1) {
+    const time = hourlyTimes[index]
+    const dateKey = formatLocalDateKey(time, timeZone)
+    if (!latestKey || dateKey !== latestKey) continue
+
+    const usAqi = typeof data?.hourly?.us_aqi?.[index] === "number" ? data.hourly.us_aqi[index] : null
+    const pm25 = typeof data?.hourly?.pm2_5?.[index] === "number" ? data.hourly.pm2_5[index] : null
+    const pm10 = typeof data?.hourly?.pm10?.[index] === "number" ? data.hourly.pm10[index] : null
+    const fallbackAqi = calculateDailyAqi(pm25, pm10)
+
+    hourly.push({
+      time: new Date(time).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: timeZone ?? undefined,
+      }),
+      aqi: typeof usAqi === "number" ? Math.round(usAqi) : fallbackAqi,
+    })
+  }
+
+  return {
+    city: location.country ? `${location.name}, ${location.country}` : location.name,
+    aqi: typeof data?.current?.us_aqi === "number"
+      ? Math.round(data.current.us_aqi)
+      : trend[trend.length - 1]?.aqi ?? null,
+    pollutants: {
+      pm25: typeof data?.current?.pm2_5 === "number" ? Number(data.current.pm2_5.toFixed(1)) : typeof latestBucket?.pm25?.[0] === "number" ? Number(latestBucket.pm25[0].toFixed(1)) : null,
+      pm10: typeof data?.current?.pm10 === "number" ? Number(data.current.pm10.toFixed(1)) : typeof latestBucket?.pm10?.[0] === "number" ? Number(latestBucket.pm10[0].toFixed(1)) : null,
+      co: typeof data?.current?.carbon_monoxide === "number" ? Number(data.current.carbon_monoxide.toFixed(3)) : typeof latestBucket?.co?.[0] === "number" ? Number(latestBucket.co[0].toFixed(3)) : null,
+      no2: typeof data?.current?.nitrogen_dioxide === "number" ? Number(data.current.nitrogen_dioxide.toFixed(1)) : typeof latestBucket?.no2?.[0] === "number" ? Number(latestBucket.no2[0].toFixed(1)) : null,
+      so2: typeof data?.current?.sulphur_dioxide === "number" ? Number(data.current.sulphur_dioxide.toFixed(1)) : typeof latestBucket?.so2?.[0] === "number" ? Number(latestBucket.so2[0].toFixed(1)) : null,
+      o3: typeof data?.current?.ozone === "number" ? Number(data.current.ozone.toFixed(1)) : typeof latestBucket?.o3?.[0] === "number" ? Number(latestBucket.o3[0].toFixed(1)) : null,
+    },
+    previousPollutants: previousBucket
+      ? {
+          pm25: typeof average(previousBucket.pm25) === "number" ? Number(average(previousBucket.pm25)!.toFixed(1)) : null,
+          pm10: typeof average(previousBucket.pm10) === "number" ? Number(average(previousBucket.pm10)!.toFixed(1)) : null,
+          co: typeof average(previousBucket.co) === "number" ? Number(average(previousBucket.co)!.toFixed(3)) : null,
+          no2: typeof average(previousBucket.no2) === "number" ? Number(average(previousBucket.no2)!.toFixed(1)) : null,
+          so2: typeof average(previousBucket.so2) === "number" ? Number(average(previousBucket.so2)!.toFixed(1)) : null,
+          o3: typeof average(previousBucket.o3) === "number" ? Number(average(previousBucket.o3)!.toFixed(1)) : null,
+        }
+      : null,
+    hourly,
+    trend,
+    provider: "open-meteo",
+  }
+}
+
 export async function GET(request: NextRequest) {
   const city = request.nextUrl.searchParams.get("city") ?? "new delhi"
 
@@ -243,10 +390,20 @@ export async function GET(request: NextRequest) {
       o3: null,
     },
     previousPollutants: null,
+    hourly: [],
     trend: [],
   }
 
   const apiKey = resolveWaqiApiKey()
+  try {
+    const openMeteoPayload = await tryOpenMeteoAqi(city)
+    if (openMeteoPayload) {
+      return NextResponse.json({ ...fallbackPayload, ...openMeteoPayload }, { status: 200 })
+    }
+  } catch {
+    // Fall through to the existing WAQI/OpenWeather logic.
+  }
+
   if (!apiKey) {
     return NextResponse.json(
       { ...fallbackPayload, warning: "Missing WAQI API key on server" },
@@ -328,6 +485,7 @@ export async function GET(request: NextRequest) {
           o3: toNumber(iaqi?.o3?.v),
         },
         previousPollutants,
+        hourly: [],
         trend: trend ?? [],
       },
       { status: 200 },

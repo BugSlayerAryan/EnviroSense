@@ -13,19 +13,10 @@ type TemperatureTrendPoint = {
   temp: number
 }
 
-const fallbackTempData: TemperatureTrendPoint[] = [
-  { day: "Today", temp: 29 },
-  { day: "Day 2", temp: 28 },
-  { day: "Day 3", temp: 27 },
-  { day: "Day 4", temp: 30 },
-  { day: "Day 5", temp: 34 },
-  { day: "Day 6", temp: 35 },
-  { day: "Day 7", temp: 29 },
-]
-
-function formatTrendDate(dateInput: string | undefined, fallbackIndex: number) {
-  if (dateInput) return dateInput
-  return fallbackIndex === 0 ? "Today" : `Day ${fallbackIndex + 1}`
+type ApiHistoryPoint = {
+  day?: string
+  date?: string
+  temp?: number | null
 }
 
 function TempTooltip({ active, payload }: any) {
@@ -38,14 +29,18 @@ function TempTooltip({ active, payload }: any) {
   )
 }
 
-export function TemperatureTrendChart() {
+type TemperatureTrendChartProps = {
+  initialCity?: string
+}
+
+export function TemperatureTrendChart({ initialCity }: TemperatureTrendChartProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, IN"
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const strokeGradient = isDark ? "url(#tempStrokeDark)" : "url(#tempStrokeLight)"
   const fillGradient = isDark ? "url(#tempFillDark)" : "url(#tempFillLight)"
-  const [data, setData] = useState<TemperatureTrendPoint[]>(fallbackTempData)
+  const [data, setData] = useState<TemperatureTrendPoint[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -55,18 +50,23 @@ export function TemperatureTrendChart() {
       setIsLoading(true)
       try {
         const weatherData = await fetchWeatherData(cityQuery)
-        const daily = Array.isArray(weatherData?.daily) ? weatherData.daily : []
-        const mapped = daily.slice(0, 7).map((item: any, index: number) => ({
-          day: formatTrendDate(item?.date ?? item?.day, index),
-          temp: Math.round(typeof item?.max === "number" ? item.max : typeof item?.current === "number" ? item.current : typeof item?.min === "number" ? item.min : 0),
-        }))
+        const history = Array.isArray(weatherData?.history) ? weatherData.history as ApiHistoryPoint[] : []
+        const mapped = history
+          .map((item) => ({
+            day: item?.date ?? item?.day ?? "",
+            temp: typeof item?.temp === "number" ? Math.round(item.temp) : null,
+          }))
+          .filter((item): item is TemperatureTrendPoint => Boolean(item.day) && typeof item.temp === "number")
+          .slice(-7)
 
         if (isMounted && mapped.length > 0) {
           setData(mapped)
+        } else if (isMounted) {
+          setData([])
         }
       } catch {
         if (isMounted) {
-          setData(fallbackTempData)
+          setData([])
         }
       } finally {
         if (isMounted) {
@@ -85,6 +85,22 @@ export function TemperatureTrendChart() {
 
   if (isLoading) {
     return <ChartSkeleton className="p-4 sm:p-5 md:p-6" />
+  }
+
+  if (chartData.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.45 }}
+        className="glass-card glow-blue p-4 sm:p-5 md:p-6"
+      >
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Temperature data unavailable</p>
+          <p className="mt-1 text-xs">--</p>
+        </div>
+      </motion.div>
+    )
   }
 
   return (

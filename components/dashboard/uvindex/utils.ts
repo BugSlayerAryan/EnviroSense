@@ -6,6 +6,7 @@ export type HourlyUvPoint = {
   time: string
   hour24: number
   uv: number
+  slotLabel?: string
 }
 
 export type DailyUvPoint = {

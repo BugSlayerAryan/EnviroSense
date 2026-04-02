@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { Suspense } from "react"
 import { reverseGeocodeCity } from "@/api/api"
+import { buildCityRoute, buildDashboardRoute, extractDashboardCityFromPathname, extractCityFromPathname, isDashboardRoute } from "@/lib/location-route"
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -46,9 +47,21 @@ function SidebarClient() {
   const searchParams = useSearchParams()
   const [isDetecting, setIsDetecting] = useState(false)
 
-  const activeCity = searchParams.get("city") ?? "New Delhi, India"
+  const activeCity =
+    searchParams.get("city")
+    ?? extractDashboardCityFromPathname(pathname)
+    ?? extractCityFromPathname(pathname)
+    ?? "New Delhi, India"
 
   const buildHref = (href: string) => {
+    if (href === "/") {
+      return buildDashboardRoute(activeCity)
+    }
+
+    if (href === "/weather" || href === "/airqualit" || href === "/uv-index") {
+      return buildCityRoute(href, activeCity)
+    }
+
     const params = new URLSearchParams(searchParams.toString())
     if (activeCity) {
       params.set("city", activeCity)
@@ -66,9 +79,7 @@ function SidebarClient() {
         const { latitude, longitude } = position.coords
         const reverse = await reverseGeocodeCity(latitude, longitude)
         const nextCity = reverse?.city || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`
-        const params = new URLSearchParams(searchParams.toString())
-        params.set("city", nextCity)
-        router.push(`${pathname}?${params.toString()}`)
+        router.push(buildDashboardRoute(nextCity))
         setIsDetecting(false)
       },
       () => {
@@ -97,7 +108,9 @@ function SidebarClient() {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             className={`rounded-lg text-sm font-medium transition-all duration-300 ${
-              pathname === item.href
+              item.href === "/"
+                ? isDashboardRoute(pathname)
+                : pathname === item.href || pathname.startsWith(`${item.href}/`)
                 ? "border-l-3 border-emerald-500 bg-white/70 text-gray-900 shadow-sm dark:bg-white/10 dark:text-white"
                 : "bg-transparent text-gray-600 hover:bg-white/50 dark:text-gray-400 dark:hover:bg-white/5"
             }`}

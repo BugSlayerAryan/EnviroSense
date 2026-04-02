@@ -37,6 +37,7 @@ type HourlyForecast = {
   time: string
   temp: number
   icon: "sunny" | "cloudy" | "rain"
+  humidity: number
   rainChance: number
   rainMm?: number
 }
@@ -48,26 +49,9 @@ type WeatherDetail = {
   tone: "blue" | "green" | "amber" | "violet"
 }
 
-const fallbackHourlyForecast: HourlyForecast[] = [
-  { time: "Now", temp: 29, icon: "sunny", rainChance: 12, rainMm: 0.0 },
-  { time: "10 AM", temp: 31, icon: "sunny", rainChance: 8, rainMm: 0.0 },
-  { time: "11 AM", temp: 32, icon: "sunny", rainChance: 7, rainMm: 0.0 },
-  { time: "12 PM", temp: 33, icon: "cloudy", rainChance: 14, rainMm: 0.5 },
-  { time: "1 PM", temp: 34, icon: "cloudy", rainChance: 21, rainMm: 1.2 },
-  { time: "2 PM", temp: 34, icon: "rain", rainChance: 35, rainMm: 3.5 },
-  { time: "3 PM", temp: 33, icon: "rain", rainChance: 48, rainMm: 5.8 },
-  { time: "4 PM", temp: 32, icon: "cloudy", rainChance: 28, rainMm: 2.1 },
-]
+const fallbackHourlyForecast: HourlyForecast[] = []
 
-const fallbackWeeklyForecast: WeeklyForecastDay[] = [
-  { day: "Today", icon: "partly", max: 36, min: 25, rain: 10, current: 29 },
-  { day: "Tue", icon: "rain", max: 34, min: 24, rain: 60 },
-  { day: "Wed", icon: "cloud", max: 32, min: 23, rain: 35 },
-  { day: "Thu", icon: "sun", max: 35, min: 25, rain: 12 },
-  { day: "Fri", icon: "partly", max: 33, min: 24, rain: 18 },
-  { day: "Sat", icon: "rain", max: 30, min: 23, rain: 70 },
-  { day: "Sun", icon: "cloud", max: 31, min: 24, rain: 28 },
-]
+const fallbackWeeklyForecast: WeeklyForecastDay[] = []
 
 function getConditionIcon(icon: HourlyForecast["icon"]) {
   if (icon === "rain") return <CloudRain className="h-5 w-5 text-blue-500" />
@@ -89,6 +73,14 @@ function formatMinutesAgo(updatedAt: Date | null, nowMs: number) {
   return `Updated ${elapsedMinutes}m ago`
 }
 
+function getUvLevelLabel(uv: number) {
+  if (uv <= 2) return "Low"
+  if (uv <= 5) return "Moderate"
+  if (uv <= 7) return "High"
+  if (uv <= 10) return "Very High"
+  return "Extreme"
+}
+
 function LoadingCard() {
   return <div className="h-24 animate-pulse rounded-2xl bg-white/50 dark:bg-white/10" />
 }
@@ -97,6 +89,18 @@ function getRainIntensityLabel(rainMm: number) {
   if (rainMm >= 12) return "Heavy"
   if (rainMm >= 4) return "Moderate"
   return "Light"
+}
+
+function formatValue(value: number | null, unit = "") {
+  return typeof value === "number" ? `${value}${unit}` : "--"
+}
+
+function formatText(value: string | null) {
+  return value ?? "--"
+}
+
+function formatRainIntensity(rainMm: number | null) {
+  return typeof rainMm === "number" ? getRainIntensityLabel(rainMm) : "--"
 }
 
 function ChartTooltip({
@@ -121,30 +125,35 @@ function ChartTooltip({
   )
 }
 
-export function WeatherDashboard() {
+type WeatherDashboardProps = {
+  initialCity?: string
+}
+
+export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi, India"
-  const [location, setLocation] = useState("New Delhi, India")
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, India"
+  const [location, setLocation] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
-  const [temperature, setTemperature] = useState(29)
-  const [feelsLike, setFeelsLike] = useState(32)
-  const [conditionText, setConditionText] = useState("Hazy Sunshine")
+  const [temperature, setTemperature] = useState<number | null>(null)
+  const [feelsLike, setFeelsLike] = useState<number | null>(null)
+  const [conditionText, setConditionText] = useState<string | null>(null)
   const [weatherUpdatedAt, setWeatherUpdatedAt] = useState<Date | null>(null)
   const [nowMs, setNowMs] = useState(Date.now())
   const [hourlyData, setHourlyData] = useState<HourlyForecast[]>(fallbackHourlyForecast)
   const [weeklyData, setWeeklyData] = useState<WeeklyForecastDay[]>(fallbackWeeklyForecast)
-  const [humidity, setHumidity] = useState(58)
-  const [windKmh, setWindKmh] = useState(12)
-  const [pressure, setPressure] = useState(1008)
-  const [visibilityKm, setVisibilityKm] = useState(5.4)
-  const [dewPoint, setDewPoint] = useState(20)
-  const [uvIndex, setUvIndex] = useState(8)
-  const [sunriseText, setSunriseText] = useState("06:02 AM")
-  const [sunsetText, setSunsetText] = useState("06:48 PM")
-  const [daylightText, setDaylightText] = useState("12h 46m")
-  const [moonPhaseLabel, setMoonPhaseLabel] = useState("Waxing Crescent")
-  const [moonIllumination, setMoonIllumination] = useState(36)
+  const [humidity, setHumidity] = useState<number | null>(null)
+  const [windKmh, setWindKmh] = useState<number | null>(null)
+  const [currentRainChance, setCurrentRainChance] = useState<number | null>(null)
+  const [pressure, setPressure] = useState<number | null>(null)
+  const [visibilityKm, setVisibilityKm] = useState<number | null>(null)
+  const [dewPoint, setDewPoint] = useState<number | null>(null)
+  const [uvIndex, setUvIndex] = useState<number | null>(null)
+  const [sunriseText, setSunriseText] = useState<string | null>(null)
+  const [sunsetText, setSunsetText] = useState<string | null>(null)
+  const [daylightText, setDaylightText] = useState<string | null>(null)
+  const [moonPhaseLabel, setMoonPhaseLabel] = useState<string | null>(null)
+  const [moonIllumination, setMoonIllumination] = useState<number | null>(null)
 
   const precipitationSeries = useMemo(
     () => weeklyData.slice(0, 7).map((item) => {
@@ -164,31 +173,33 @@ export function WeatherDashboard() {
     return Math.round(total / precipitationSeries.length)
   }, [precipitationSeries])
 
+  const averageRainChanceLabel = precipitationSeries.length > 0 ? `${averageRainChance}%` : "--"
+
   const conditionSnapshot = useMemo(
     () => [
-      { label: "Humidity", value: `${humidity}%`, icon: Droplets, color: "text-sky-600 dark:text-sky-300" },
-      { label: "Wind", value: `${windKmh} km/h`, icon: Wind, color: "text-cyan-600 dark:text-cyan-300" },
-      { label: "Rainfall", value: `${averageRainChance}%`, icon: CloudRain, color: "text-blue-600 dark:text-blue-300" },
-      { label: "UV", value: `${uvIndex} High`, icon: Sun, color: "text-amber-600 dark:text-amber-300" },
+      { label: "Humidity", value: formatValue(humidity, "%"), icon: Droplets, color: "text-sky-600 dark:text-sky-300" },
+      { label: "Wind", value: formatValue(windKmh, " km/h"), icon: Wind, color: "text-cyan-600 dark:text-cyan-300" },
+      { label: "Rainfall", value: formatValue(currentRainChance, "%"), icon: CloudRain, color: "text-blue-600 dark:text-blue-300" },
+      { label: "UV", value: typeof uvIndex === "number" ? `${uvIndex} ${getUvLevelLabel(uvIndex)}` : "--", icon: Sun, color: "text-amber-600 dark:text-amber-300" },
     ],
-    [averageRainChance, humidity, uvIndex, windKmh],
+    [currentRainChance, humidity, uvIndex, windKmh],
   )
 
   const weatherDetails = useMemo(
     () => [
-      { label: "Humidity", value: `${humidity}%`, icon: Droplets, tone: "blue" as const },
-      { label: "Wind Speed", value: `${windKmh} km/h`, icon: Wind, tone: "blue" as const },
-      { label: "Pressure", value: `${pressure} hPa`, icon: Gauge, tone: "violet" as const },
-      { label: "UV Index", value: `${uvIndex} (High)`, icon: Sun, tone: "amber" as const },
-      { label: "Visibility", value: `${visibilityKm.toFixed(1)} km`, icon: Eye, tone: "green" as const },
-      { label: "Dew Point", value: `${dewPoint} deg C`, icon: ThermometerSun, tone: "amber" as const },
+      { label: "Humidity", value: formatValue(humidity, "%"), icon: Droplets, tone: "blue" as const },
+      { label: "Wind Speed", value: formatValue(windKmh, " km/h"), icon: Wind, tone: "blue" as const },
+      { label: "Pressure", value: formatValue(pressure, " hPa"), icon: Gauge, tone: "violet" as const },
+      { label: "UV Index", value: typeof uvIndex === "number" ? `${uvIndex} (${getUvLevelLabel(uvIndex)})` : "--", icon: Sun, tone: "amber" as const },
+      { label: "Visibility", value: formatValue(visibilityKm, " km"), icon: Eye, tone: "green" as const },
+      { label: "Dew Point", value: formatValue(dewPoint, " deg C"), icon: ThermometerSun, tone: "amber" as const },
     ],
     [dewPoint, humidity, pressure, uvIndex, visibilityKm, windKmh],
   )
 
   const peakPrecipitation = useMemo(() => {
     if (!precipitationSeries.length) {
-      return { day: "N/A", probability: 0, rainMm: 0 }
+      return { day: "--", probability: null as number | null, rainMm: null as number | null }
     }
 
     return precipitationSeries.reduce((peak, item) => {
@@ -208,29 +219,32 @@ export function WeatherDashboard() {
     setHasError(false)
     setIsLoading(true)
     try {
-      const selectedCity = requestedCity ?? location
+      const selectedCity = requestedCity ?? location ?? cityQuery
       const [weatherData, uvData] = await Promise.all([fetchWeatherData(selectedCity), fetchUvData(selectedCity)])
 
-      if (typeof weatherData?.temp === "number") setTemperature(Math.round(weatherData.temp))
-      if (typeof weatherData?.feelsLike === "number") setFeelsLike(Math.round(weatherData.feelsLike))
-      if (weatherData?.condition || weatherData?.description) setConditionText(weatherData.condition ?? weatherData.description)
+      setTemperature(typeof weatherData?.temp === "number" ? Math.round(weatherData.temp) : null)
+      setFeelsLike(typeof weatherData?.feelsLike === "number" ? Math.round(weatherData.feelsLike) : null)
+      setConditionText(typeof weatherData?.condition === "string" ? weatherData.condition : typeof weatherData?.description === "string" ? weatherData.description : null)
       if (weatherData?.city) {
         setLocation(weatherData?.country ? `${weatherData.city}, ${weatherData.country}` : weatherData.city)
       } else {
-        setLocation(selectedCity)
+        setLocation(null)
       }
 
-      if (Array.isArray(weatherData?.hourly) && weatherData.hourly.length > 0) {
-        setHourlyData(weatherData.hourly)
-      }
-      if (Array.isArray(weatherData?.daily) && weatherData.daily.length > 0) {
-        setWeeklyData(weatherData.daily)
-      }
+      setHourlyData(Array.isArray(weatherData?.hourly) ? weatherData.hourly : [])
+      setWeeklyData(Array.isArray(weatherData?.daily) ? weatherData.daily : [])
 
-      if (typeof weatherData?.humidity === "number") setHumidity(Math.round(weatherData.humidity))
-      if (typeof weatherData?.windKmh === "number") setWindKmh(Math.round(weatherData.windKmh))
-      if (typeof weatherData?.pressure === "number") setPressure(Math.round(weatherData.pressure))
-      if (typeof weatherData?.visibilityKm === "number") setVisibilityKm(Number(weatherData.visibilityKm))
+      setHumidity(typeof weatherData?.humidity === "number" ? Math.round(weatherData.humidity) : null)
+      setWindKmh(typeof weatherData?.windKmh === "number" ? Math.round(weatherData.windKmh) : null)
+      if (typeof weatherData?.currentRainChance === "number") {
+        setCurrentRainChance(Math.min(100, Math.max(0, Math.round(weatherData.currentRainChance))))
+      } else if (Array.isArray(weatherData?.hourly) && weatherData.hourly.length > 0 && typeof weatherData.hourly[0]?.rainChance === "number") {
+        setCurrentRainChance(Math.min(100, Math.max(0, Math.round(weatherData.hourly[0].rainChance))))
+      } else {
+        setCurrentRainChance(null)
+      }
+      setPressure(typeof weatherData?.pressure === "number" ? Math.round(weatherData.pressure) : null)
+      setVisibilityKm(typeof weatherData?.visibilityKm === "number" ? Number(weatherData.visibilityKm) : null)
       if (typeof weatherData?.temp === "number" && typeof weatherData?.humidity === "number") {
         const temp = Math.round(weatherData.temp)
         const humidityValue = Math.round(weatherData.humidity)
@@ -238,15 +252,23 @@ export function WeatherDashboard() {
         const b = 237.7
         const alpha = ((a * temp) / (b + temp)) + Math.log(Math.max(humidityValue, 1) / 100)
         setDewPoint(Math.round((b * alpha) / (a - alpha)))
+      } else {
+        setDewPoint(null)
       }
-      if (typeof uvData?.currentUv === "number") setUvIndex(Math.round(uvData.currentUv))
+      setUvIndex(typeof uvData?.currentUv === "number" ? Math.round(uvData.currentUv) : null)
 
       if (weatherData?.astronomy) {
-        if (typeof weatherData.astronomy.sunrise === "string") setSunriseText(weatherData.astronomy.sunrise)
-        if (typeof weatherData.astronomy.sunset === "string") setSunsetText(weatherData.astronomy.sunset)
-        if (typeof weatherData.astronomy.daylightHours === "string") setDaylightText(weatherData.astronomy.daylightHours)
-        if (typeof weatherData.astronomy.moonPhaseLabel === "string") setMoonPhaseLabel(weatherData.astronomy.moonPhaseLabel)
-        if (typeof weatherData.astronomy.moonIllumination === "number") setMoonIllumination(weatherData.astronomy.moonIllumination)
+        setSunriseText(typeof weatherData.astronomy.sunrise === "string" ? weatherData.astronomy.sunrise : null)
+        setSunsetText(typeof weatherData.astronomy.sunset === "string" ? weatherData.astronomy.sunset : null)
+        setDaylightText(typeof weatherData.astronomy.daylightHours === "string" ? weatherData.astronomy.daylightHours : null)
+        setMoonPhaseLabel(typeof weatherData.astronomy.moonPhaseLabel === "string" ? weatherData.astronomy.moonPhaseLabel : null)
+        setMoonIllumination(typeof weatherData.astronomy.moonIllumination === "number" ? weatherData.astronomy.moonIllumination : null)
+      } else {
+        setSunriseText(null)
+        setSunsetText(null)
+        setDaylightText(null)
+        setMoonPhaseLabel(null)
+        setMoonIllumination(null)
       }
 
       setWeatherUpdatedAt(new Date())
@@ -318,17 +340,19 @@ export function WeatherDashboard() {
 
             <div className="mb-3 mt-4 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50/95 px-3 py-1.5 text-[11px] font-bold text-sky-700 shadow-sm dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-300 sm:gap-2 sm:text-xs">
               <MapPin className="h-3.5 w-3.5" />
-              {location}
+              {formatText(location)}
             </div>
 
             <h2 className="text-5xl font-black leading-none text-slate-900 dark:text-slate-50 sm:text-6xl">
-              {temperature} <span className="text-3xl sm:text-4xl">deg</span>
+              {typeof temperature === "number" ? temperature : "--"} <span className="text-3xl sm:text-4xl">deg</span>
             </h2>
-            <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:text-base">Feels like {feelsLike} deg C</p>
+            <p className="mt-1 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:text-base">
+              Feels like {typeof feelsLike === "number" ? `${feelsLike} deg C` : "--"}
+            </p>
 
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300">
               <CloudSun className="h-4 w-4" />
-              {conditionText}
+              {formatText(conditionText)}
             </div>
 
             <p className="mt-3 max-w-xl text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
@@ -385,7 +409,8 @@ export function WeatherDashboard() {
           </div>
         ) : (
           <div className="dashboard-scroll flex gap-3 overflow-x-auto pb-1">
-            {hourlyData.map((item, index) => (
+            {hourlyData.length > 0 ? (
+              hourlyData.map((item, index) => (
               <motion.article
                 key={`${item.time}-${index}`}
                 initial={{ opacity: 0, y: 14 }}
@@ -398,23 +423,28 @@ export function WeatherDashboard() {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">{item.time}</p>
                 <div className="mt-2 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-600 dark:bg-slate-700/50">{getConditionIcon(item.icon)}</div>
                 <p className="mt-2 text-xl font-bold leading-none text-slate-900 dark:text-slate-50">{item.temp} deg</p>
-                <p className="mt-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">Rain {item.rainChance}% | {typeof item.rainMm === "number" ? item.rainMm.toFixed(1) : "0.0"} mm</p>
+                <p className="mt-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">Humidity {item.humidity}%</p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${item.rainChance}%` }}
+                    animate={{ width: `${Math.min(Math.max(item.humidity, 0), 100)}%` }}
                     transition={{ duration: 0.6, delay: 0.05 * index }}
                     className="h-full rounded-full bg-linear-to-r from-sky-500 to-blue-600"
                   />
                 </div>
               </motion.article>
-            ))}
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                Hourly weather data is unavailable.
+              </div>
+            )}
           </div>
         )}
       </div>
 
       <WeeklyForecast
-        title={`${Math.max(1, weeklyData.length)}-Day Forecast`}
+        title="7-Day Forecast"
         subtitle="Daily min/max temperatures and conditions from OpenWeather"
         data={weeklyData}
         loading={isLoading}
@@ -476,7 +506,7 @@ export function WeatherDashboard() {
               <p className="text-xs text-slate-500 dark:text-slate-300">{forecastDayCount}-day rain probability and rainfall volume</p>
             </div>
             <div className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-300">
-              {averageRainChance}% avg chance
+              {averageRainChanceLabel} avg chance
             </div>
           </div>
 
@@ -487,11 +517,11 @@ export function WeatherDashboard() {
             </div>
             <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Max Chance</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{peakPrecipitation.probability}%</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatValue(peakPrecipitation.probability, "%")}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
               <p className="text-[11px] text-slate-500 dark:text-slate-400">Intensity</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{getRainIntensityLabel(peakPrecipitation.rainMm)}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatRainIntensity(peakPrecipitation.rainMm)}</p>
             </div>
           </div>
 
@@ -553,7 +583,7 @@ export function WeatherDashboard() {
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sun</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Sunrise</p>
-            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{sunriseText}</p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{formatText(sunriseText)}</p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
               <motion.div initial={{ width: 0 }} animate={{ width: "42%" }} transition={{ duration: 0.7 }} className="h-full rounded-full bg-linear-to-r from-amber-400 to-orange-500" />
             </div>
@@ -566,11 +596,11 @@ export function WeatherDashboard() {
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sun</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Sunset</p>
-            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{sunsetText}</p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{formatText(sunsetText)}</p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
               <motion.div initial={{ width: 0 }} animate={{ width: "74%" }} transition={{ duration: 0.7, delay: 0.05 }} className="h-full rounded-full bg-linear-to-r from-orange-400 to-rose-500" />
             </div>
-            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Approx daylight: {daylightText}</p>
+            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Approx daylight: {formatText(daylightText)}</p>
           </motion.div>
 
           <motion.div whileHover={{ y: -2 }} className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-800/85">
@@ -579,16 +609,16 @@ export function WeatherDashboard() {
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Moon</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Moon Phase</p>
-            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{moonPhaseLabel}</p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50">{formatText(moonPhaseLabel)}</p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min(Math.max(moonIllumination, 0), 100)}%` }}
+                animate={{ width: `${Math.min(Math.max(typeof moonIllumination === "number" ? moonIllumination : 0, 0), 100)}%` }}
                 transition={{ duration: 0.7, delay: 0.1 }}
                 className="h-full rounded-full bg-linear-to-r from-violet-400 to-indigo-500"
               />
             </div>
-            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Illumination {moonIllumination}%</p>
+            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Illumination {formatValue(moonIllumination, "%")}</p>
           </motion.div>
         </div>
       </motion.article>

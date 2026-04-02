@@ -8,6 +8,7 @@ import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { fetchWeatherData, reverseGeocodeCity } from "@/api/api"
 import { useTheme } from "next-themes"
+import { buildCityRoute, buildDashboardRoute, extractCityFromPathname, extractDashboardCityFromPathname, isDashboardRoute } from "@/lib/location-route"
 
 type SearchBarProps = {
   value: string
@@ -124,6 +125,8 @@ function NavbarFallback() {
 }
 
 function NavbarClient() {
+  const DEFAULT_CITY = "New Delhi, India"
+  const INITIAL_LOCATION_CHECK_KEY = "envirosense-initial-location-check-v1"
   const { theme, setTheme } = useTheme()
   const pathname = usePathname()
   const router = useRouter()
@@ -131,29 +134,72 @@ function NavbarClient() {
   const [mounted, setMounted] = useState(false)
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState("")
-  const [searchValue, setSearchValue] = useState(searchParams.get("city") ?? "New Delhi, India")
+  const [searchValue, setSearchValue] = useState(
+    searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname) ?? DEFAULT_CITY,
+  )
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
   useEffect(() => {
-    if (searchParams.get("city")) return
-    void handleUseCurrentLocation()
-    // Run once on first load so the dashboard can switch away from the default city automatically.
+    const currentRouteCity = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
+    const normalizedCity = (currentRouteCity ?? "").toLowerCase().replace(/\s+/g, " ").trim()
+    const isDefaultCityRoute = normalizedCity.startsWith("new delhi")
+
+    try {
+      if (window.sessionStorage.getItem(INITIAL_LOCATION_CHECK_KEY) === "1") {
+        return
+      }
+
+      window.sessionStorage.setItem(INITIAL_LOCATION_CHECK_KEY, "1")
+    } catch {
+      // If storage is unavailable, continue with best-effort behavior.
+    }
+
+    if (isDefaultCityRoute || !currentRouteCity) {
+      void handleUseCurrentLocation()
+    }
+    // Run once per browser session to avoid repeatedly overriding user-selected cities.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [pathname, searchParams])
 
   useEffect(() => {
-    setSearchValue(searchParams.get("city") ?? "New Delhi, India")
-  }, [searchParams])
+    setSearchValue(searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname) ?? DEFAULT_CITY)
+  }, [pathname, searchParams])
 
-  const applyCityQuery = (city: string) => {
+  const pushWithCity = (city: string) => {
     const trimmed = city.trim()
     if (!trimmed) return
+
+    if (pathname.startsWith("/weather")) {
+      router.push(buildCityRoute("/weather", trimmed))
+      return
+    }
+
+    if (pathname.startsWith("/airqualit")) {
+      router.push(buildCityRoute("/airqualit", trimmed))
+      return
+    }
+
+    if (pathname.startsWith("/uv-index")) {
+      router.push(buildCityRoute("/uv-index", trimmed))
+      return
+    }
+
+    if (isDashboardRoute(pathname) || pathname === "/") {
+      router.push(buildDashboardRoute(trimmed))
+      return
+    }
+
     const params = new URLSearchParams(searchParams.toString())
     params.set("city", trimmed)
-    router.push(`${pathname}?${params.toString()}`)
+    const suffix = params.toString()
+    router.push(suffix ? `${pathname}?${suffix}` : pathname)
+  }
+
+  const applyCityQuery = (city: string) => {
+    pushWithCity(city)
   }
 
   const handleSearchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -163,8 +209,15 @@ function NavbarClient() {
     setLocationError("")
 
     try {
-      await fetchWeatherData(trimmed)
-      applyCityQuery(trimmed)
+      const weather = await fetchWeatherData(trimmed)
+      const resolvedCity = typeof weather?.city === "string" ? weather.city.trim() : ""
+      const resolvedCountry = typeof weather?.country === "string" ? weather.country.trim() : ""
+      const nextCity = resolvedCity
+        ? resolvedCountry
+          ? `${resolvedCity}, ${resolvedCountry}`
+          : resolvedCity
+        : trimmed
+      applyCityQuery(nextCity)
     } catch (error) {
       if (error instanceof Error && error.message === "CITY_NOT_FOUND") {
         router.push(`/city-not-found?city=${encodeURIComponent(trimmed)}`)
@@ -177,7 +230,9 @@ function NavbarClient() {
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported in this browser.")
+      setLocationError("Geolocation is not supported in this browser. Showing New Delhi by default.")
+      setSearchValue(DEFAULT_CITY)
+      pushWithCity(DEFAULT_CITY)
       return
     }
 
@@ -189,24 +244,28 @@ function NavbarClient() {
         try {
           const { latitude, longitude } = position.coords
           const reverse = await reverseGeocodeCity(latitude, longitude)
-          const nextCity = reverse?.city || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`
+          const nextCity = reverse?.city || DEFAULT_CITY
           setSearchValue(nextCity)
           applyCityQuery(nextCity)
         } catch {
-          setLocationError("Unable to resolve your location. Please try again.")
+          setLocationError("Unable to resolve your location. Showing New Delhi by default.")
+          setSearchValue(DEFAULT_CITY)
+          pushWithCity(DEFAULT_CITY)
         } finally {
           setIsDetectingLocation(false)
         }
       },
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
-          setLocationError("Location access denied. Enable permission to use live location.")
+          setLocationError("Location access denied. Showing New Delhi by default.")
         } else {
-          setLocationError("Could not fetch your current location.")
+          setLocationError("Could not fetch your current location. Showing New Delhi by default.")
         }
+        setSearchValue(DEFAULT_CITY)
+        pushWithCity(DEFAULT_CITY)
         setIsDetectingLocation(false)
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
     )
   }
 

@@ -8,9 +8,13 @@ import { useSearchParams } from "next/navigation"
 import { fetchAqiData } from "@/api/api"
 import { AqiMetricSkeleton } from "@/components/dashboard/loading-states"
 
-export function AqiCard() {
+type AqiCardProps = {
+  initialCity?: string
+}
+
+export function AqiCard({ initialCity }: AqiCardProps) {
   const searchParams = useSearchParams()
-  const cityQuery = searchParams.get("city") ?? "New Delhi"
+  const cityQuery = initialCity ?? searchParams.get("city") ?? "New Delhi, IN"
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [aqi, setAqi] = useState<number | null>(null)
   const [pm25, setPm25] = useState<number | null>(null)
@@ -77,15 +81,17 @@ export function AqiCard() {
       <div className="mb-3 flex items-center justify-between rounded-xl bg-linear-to-r from-red-200/40 to-orange-200/40 p-4 dark:from-red-500/20 dark:to-orange-500/20">
         <div>
           <p className="text-4xl font-bold text-gray-800 dark:text-white sm:text-5xl">{aqi ?? "--"}</p>
-          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-600 dark:bg-red-500/20 dark:text-red-300">{aqiLabel}</span>
+          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-600 dark:bg-red-500/20 dark:text-red-300">
+            {aqi === null ? "--" : aqiLabel}
+          </span>
         </div>
         <Wind className="h-10 w-10 text-red-400 dark:text-red-300 sm:h-12 sm:w-12" />
       </div>
 
       <div className="flex flex-col justify-between gap-3 border-t border-white/40 pt-3 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM2.5</span><strong className="text-gray-800 dark:text-white">{pm25 ?? "--"} {pm25 !== null ? "µg/m³" : ""}</strong></div>
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM10</span><strong className="text-gray-800 dark:text-white">{pm10 ?? "--"} {pm10 !== null ? "µg/m³" : ""}</strong></div>
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>CO</span><strong className="text-gray-800 dark:text-white">{co ?? "--"} {co !== null ? "ppm" : ""}</strong></div>
+        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM2.5</span><strong className="text-gray-800 dark:text-white">{pm25 ?? "--"}{pm25 !== null ? " µg/m³" : ""}</strong></div>
+        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM10</span><strong className="text-gray-800 dark:text-white">{pm10 ?? "--"}{pm10 !== null ? " µg/m³" : ""}</strong></div>
+        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>CO</span><strong className="text-gray-800 dark:text-white">{co ?? "--"}{co !== null ? " ppm" : ""}</strong></div>
       </div>
     </motion.div>
   )

@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
+import {
+  daylightHoursFromIso,
+  formatLocalDateLabel,
+  formatLocalDayLabel,
+  formatLocalHour,
+  formatLocalTime,
+  resolveOpenMeteoCity,
+  weatherCodeToSummary,
+} from "@/lib/open-meteo"
 
 const OPEN_WEATHER_BASE = "https://api.openweathermap.org/data/2.5/weather"
 const OPEN_WEATHER_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
 const ONE_CALL_V3 = "https://api.openweathermap.org/data/3.0/onecall"
 const ONE_CALL_V25 = "https://api.openweathermap.org/data/2.5/onecall"
+const OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast"
 
 function resolveWeatherApiKey() {
   return (
@@ -66,6 +76,10 @@ function toDateLabel(unixTime: number, timezoneOffsetSeconds = 0) {
   })
 }
 
+function toLocalDateKey(unixTime: number, timezoneOffsetSeconds = 0) {
+  return new Date((unixTime + timezoneOffsetSeconds) * 1000).toISOString().slice(0, 10)
+}
+
 function getWeatherIcon(main: string | undefined, clouds = 0, rainChance = 0): WeatherIconName {
   const normalized = (main ?? "").toLowerCase()
   if (normalized.includes("rain") || normalized.includes("drizzle") || rainChance >= 45) return "rain"
@@ -92,42 +106,36 @@ function getDewPoint(tempC: number, humidity: number) {
   return Number(((b * alpha) / (a - alpha)).toFixed(1))
 }
 
-function deriveRainChance(rawPop: unknown, clouds = 0, rainMm = 0, weatherMain?: string) {
-  // Priority 1: actual rain volume
-  if (rainMm > 0) {
-    return Math.min(100, Math.max(20, Math.round(rainMm * 20)))
-  }
-
-  // Priority 2: explicit weather condition (rain/drizzle/thunder)
-  const weather = (weatherMain ?? "").toLowerCase()
-  if (weather.includes("rain") || weather.includes("drizzle") || weather.includes("thunder")) {
-    return Math.min(100, Math.max(35, Math.round(clouds * 0.7)))
-  }
-
-  // Priority 3: use pop if it's explicitly non-zero
-  if (typeof rawPop === "number" && Number.isFinite(rawPop) && rawPop > 0) {
+function deriveRainChance(rawPop: unknown) {
+  // Use provider probability directly only.
+  if (typeof rawPop === "number" && Number.isFinite(rawPop)) {
     return Math.min(100, Math.max(0, Math.round(rawPop * 100)))
   }
-
-  // Priority 4: cloud-based estimation (pop was zero or missing)
-  // Higher clouds = higher rain chance, even with pop=0
-  if (clouds > 0) {
-    return Math.min(100, Math.max(0, Math.round(clouds * 0.5)))
-  }
-
   return 0
 }
 
 function buildForecastFromOneCall(oneCallData: any, currentTemp: number) {
+  const timezoneOffset = typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0
+  const hourlyRainByDay = new Map<string, number>()
+
+  ;(oneCallData?.hourly ?? []).slice(0, 24 * 7).forEach((item: any) => {
+    if (typeof item?.dt !== "number") return
+    const dayKey = toLocalDateKey(item.dt, timezoneOffset)
+    const rainMm = typeof item?.rain?.["1h"] === "number" ? item.rain["1h"] : 0
+    const total = (hourlyRainByDay.get(dayKey) ?? 0) + rainMm
+    hourlyRainByDay.set(dayKey, Number(total.toFixed(1)))
+  })
+
   const hourly = (oneCallData?.hourly ?? []).slice(0, 8).map((item: any) => {
     const clouds = typeof item?.clouds === "number" ? item.clouds : 0
     const rainMm = typeof item?.rain?.["1h"] === "number" ? item.rain["1h"] : 0
-    const pop = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
+    const pop = deriveRainChance(item?.pop)
     return {
       time: item?.dt ? toHourLabel(item.dt) : "Now",
-      date: item?.dt ? toDateLabel(item.dt, typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0) : null,
+      date: item?.dt ? toDateLabel(item.dt, timezoneOffset) : null,
       temp: Math.round(typeof item?.temp === "number" ? item.temp : currentTemp),
       icon: getHourlyIcon(item?.weather?.[0]?.main, clouds, pop),
+      humidity: typeof item?.humidity === "number" ? Math.round(item.humidity) : 0,
       rainChance: pop,
       rainMm: Number(rainMm.toFixed(1)),
     }
@@ -135,14 +143,19 @@ function buildForecastFromOneCall(oneCallData: any, currentTemp: number) {
 
   const daily = (oneCallData?.daily ?? []).slice(0, 7).map((item: any, index: number) => {
     const clouds = typeof item?.clouds === "number" ? item.clouds : 0
-    const rainMm = typeof item?.rain === "number" ? Number(item.rain.toFixed(1)) : 0
-    const rainChance = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
+    const dayKey = typeof item?.dt === "number" ? toLocalDateKey(item.dt, timezoneOffset) : null
+    const rainMm = typeof item?.rain === "number"
+      ? Number(item.rain.toFixed(1))
+      : dayKey
+        ? Number((hourlyRainByDay.get(dayKey) ?? 0).toFixed(1))
+        : 0
+    const rainChance = deriveRainChance(item?.pop)
     const max = Math.round(typeof item?.temp?.max === "number" ? item.temp.max : currentTemp)
     const min = Math.round(typeof item?.temp?.min === "number" ? item.temp.min : currentTemp)
     const current = index === 0 ? Math.round(typeof oneCallData?.current?.temp === "number" ? oneCallData.current.temp : currentTemp) : undefined
     return {
       day: item?.dt ? toDayLabel(item.dt) : index === 0 ? "Today" : `Day ${index + 1}`,
-      date: item?.dt ? toDateLabel(item.dt, typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0) : null,
+      date: item?.dt ? toDateLabel(item.dt, timezoneOffset) : null,
       icon: getWeatherIcon(item?.weather?.[0]?.main, clouds, rainChance),
       max,
       min,
@@ -176,17 +189,148 @@ function buildAstronomy(oneCallData: any, weatherData: any) {
   }
 }
 
+async function tryOpenMeteoWeather(city: string) {
+  const location = await resolveOpenMeteoCity(city)
+  if (!location) return null
+
+  const forecastUrl = `${OPEN_METEO_FORECAST}?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,surface_pressure,visibility,wind_speed_10m,precipitation,precipitation_probability,weather_code,cloud_cover&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,rain,showers,cloud_cover,weather_code,wind_speed_10m,visibility&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,rain_sum,showers_sum,weather_code,sunrise,sunset&timezone=auto&forecast_days=7`
+  const response = await fetch(forecastUrl, { cache: "no-store" })
+  if (!response.ok) return null
+
+  const data = await response.json()
+  const timeZone = data?.timezone ?? location.timezone ?? "UTC"
+  const historyUrl = `${OPEN_METEO_FORECAST}?latitude=${location.latitude}&longitude=${location.longitude}&daily=temperature_2m_max,temperature_2m_min&timezone=auto&past_days=6&forecast_days=1`
+  const historyResponse = await fetch(historyUrl, { cache: "no-store" })
+  const historyData = historyResponse.ok ? await historyResponse.json() : null
+  const currentSummary = weatherCodeToSummary(data?.current?.weather_code)
+  const hourlyTimes = Array.isArray(data?.hourly?.time) ? data.hourly.time : []
+  const dailyTimes = Array.isArray(data?.daily?.time) ? data.daily.time : []
+  const historyTimes = Array.isArray(historyData?.daily?.time) ? historyData.daily.time : []
+
+  const hourly = hourlyTimes.slice(0, 8).map((time: string, index: number) => {
+    const summary = weatherCodeToSummary(data?.hourly?.weather_code?.[index])
+    const rainChance = typeof data?.hourly?.precipitation_probability?.[index] === "number"
+      ? Math.min(100, Math.max(0, Math.round(data.hourly.precipitation_probability[index])))
+      : 0
+    const rainMm = typeof data?.hourly?.precipitation?.[index] === "number"
+      ? data.hourly.precipitation[index]
+      : typeof data?.hourly?.rain?.[index] === "number"
+        ? data.hourly.rain[index]
+        : typeof data?.hourly?.showers?.[index] === "number"
+          ? data.hourly.showers[index]
+          : 0
+
+    return {
+      time: formatLocalHour(time, timeZone),
+      date: formatLocalDateLabel(time, timeZone),
+      temp: typeof data?.hourly?.temperature_2m?.[index] === "number" ? Math.round(data.hourly.temperature_2m[index]) : Math.round(typeof data?.current?.temperature_2m === "number" ? data.current.temperature_2m : 0),
+      icon: summary.icon,
+      humidity: typeof data?.hourly?.relative_humidity_2m?.[index] === "number" ? Math.round(data.hourly.relative_humidity_2m[index]) : 0,
+      rainChance,
+      rainMm: Number(Number(rainMm).toFixed(1)),
+    }
+  })
+
+  const daily = dailyTimes.slice(0, 7).map((time: string, index: number) => {
+    const summary = weatherCodeToSummary(data?.daily?.weather_code?.[index])
+    const rainChance = typeof data?.daily?.precipitation_probability_max?.[index] === "number"
+      ? Math.min(100, Math.max(0, Math.round(data.daily.precipitation_probability_max[index])))
+      : 0
+    const rainMm = typeof data?.daily?.precipitation_sum?.[index] === "number"
+      ? data.daily.precipitation_sum[index]
+      : typeof data?.daily?.rain_sum?.[index] === "number"
+        ? data.daily.rain_sum[index]
+        : typeof data?.daily?.showers_sum?.[index] === "number"
+          ? data.daily.showers_sum[index]
+          : 0
+    const current = index === 0 && typeof data?.current?.temperature_2m === "number"
+      ? Math.round(data.current.temperature_2m)
+      : undefined
+
+    return {
+      day: formatLocalDayLabel(time, timeZone),
+      date: formatLocalDateLabel(time, timeZone),
+      icon: summary.icon,
+      max: typeof data?.daily?.temperature_2m_max?.[index] === "number" ? Math.round(data.daily.temperature_2m_max[index]) : current ?? 0,
+      min: typeof data?.daily?.temperature_2m_min?.[index] === "number" ? Math.round(data.daily.temperature_2m_min[index]) : current ?? 0,
+      rain: rainChance,
+      rainMm: Number(Number(rainMm).toFixed(1)),
+      current,
+    }
+  })
+
+  const sunrise = data?.daily?.sunrise?.[0] ?? null
+  const sunset = data?.daily?.sunset?.[0] ?? null
+
+  const history = historyTimes
+    .map((time: string, index: number) => {
+      const max = typeof historyData?.daily?.temperature_2m_max?.[index] === "number" ? historyData.daily.temperature_2m_max[index] : null
+      const min = typeof historyData?.daily?.temperature_2m_min?.[index] === "number" ? historyData.daily.temperature_2m_min[index] : null
+      const value = typeof max === "number"
+        ? max
+        : typeof min === "number"
+          ? min
+          : null
+
+      return {
+        day: formatLocalDateLabel(time, timeZone),
+        date: formatLocalDateLabel(time, timeZone),
+        temp: typeof value === "number" ? Math.round(value) : null,
+      }
+    })
+    .slice(-7)
+
+  return {
+    city: location.name,
+    country: location.country,
+    temp: typeof data?.current?.temperature_2m === "number" ? Math.round(data.current.temperature_2m) : null,
+    feelsLike: typeof data?.current?.apparent_temperature === "number" ? Math.round(data.current.apparent_temperature) : null,
+    humidity: typeof data?.current?.relative_humidity_2m === "number" ? Math.round(data.current.relative_humidity_2m) : null,
+    pressure: typeof data?.current?.surface_pressure === "number" ? Math.round(data.current.surface_pressure) : null,
+    visibilityKm: typeof data?.current?.visibility === "number" ? Number((data.current.visibility / 1000).toFixed(1)) : null,
+    windKmh: typeof data?.current?.wind_speed_10m === "number" ? Number(data.current.wind_speed_10m.toFixed(1)) : null,
+    currentRainMm: typeof data?.current?.precipitation === "number"
+      ? Number(data.current.precipitation.toFixed(1))
+      : typeof data?.current?.rain === "number"
+        ? Number(data.current.rain.toFixed(1))
+        : null,
+    currentRainChance: typeof data?.current?.precipitation_probability === "number"
+      ? Math.min(100, Math.max(0, Math.round(data.current.precipitation_probability)))
+      : hourly[0]?.rainChance ?? null,
+    condition: currentSummary.condition,
+    description: currentSummary.description,
+    coord: {
+      lat: location.latitude,
+      lon: location.longitude,
+    },
+    hourly,
+    daily,
+    history,
+    astronomy: {
+      sunrise: sunrise ? formatLocalTime(sunrise, timeZone) : null,
+      sunset: sunset ? formatLocalTime(sunset, timeZone) : null,
+      daylightHours: daylightHoursFromIso(sunrise, sunset),
+      moonPhase: null,
+      moonPhaseLabel: null,
+      moonIllumination: null,
+    },
+    updatedAt: new Date().toISOString(),
+    provider: "open-meteo",
+  }
+}
+
 function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number) {
   const list = Array.isArray(forecastData?.list) ? forecastData.list : []
   const hourly = list.slice(0, 8).map((item: any, index: number) => {
     const clouds = typeof item?.clouds?.all === "number" ? item.clouds.all : 0
     const rainMm = typeof item?.rain?.["3h"] === "number" ? item.rain["3h"] : 0
-    const pop = deriveRainChance(item?.pop, clouds, rainMm, item?.weather?.[0]?.main)
+    const pop = deriveRainChance(item?.pop)
     return {
       time: item?.dt ? toHourLabel(item.dt) : index === 0 ? "Now" : `${index + 1}H`,
       date: item?.dt ? toDateLabel(item.dt) : null,
       temp: Math.round(typeof item?.main?.temp === "number" ? item.main.temp : currentTemp),
       icon: getHourlyIcon(item?.weather?.[0]?.main, clouds, pop),
+      humidity: typeof item?.main?.humidity === "number" ? Math.round(item.main.humidity) : 0,
       rainChance: pop,
       rainMm: Number(rainMm.toFixed(1)),
     }
@@ -201,7 +345,7 @@ function buildForecastFromFiveDayForecast(forecastData: any, currentTemp: number
     const temp = typeof item?.main?.temp === "number" ? item.main.temp : currentTemp
     const clouds = typeof item?.clouds?.all === "number" ? item.clouds.all : 0
     const rainVolumeMm = typeof item?.rain?.["3h"] === "number" ? item.rain["3h"] : 0
-    const rainChance = deriveRainChance(item?.pop, clouds, rainVolumeMm, item?.weather?.[0]?.main)
+    const rainChance = deriveRainChance(item?.pop)
     const icon = getWeatherIcon(item?.weather?.[0]?.main, clouds, rainChance)
     const existing = grouped.get(dateKey)
     if (!existing) {
@@ -246,6 +390,8 @@ export async function GET(request: NextRequest) {
     pressure: null,
     visibilityKm: null,
     windKmh: null,
+    currentRainMm: null,
+    currentRainChance: null,
     condition: "Unavailable",
     description: "Weather service temporarily unavailable",
     coord: {
@@ -254,6 +400,7 @@ export async function GET(request: NextRequest) {
     },
     hourly: [],
     daily: [],
+    history: [],
     astronomy: {
       sunrise: null,
       sunset: null,
@@ -266,6 +413,15 @@ export async function GET(request: NextRequest) {
   }
 
   const apiKey = resolveWeatherApiKey()
+  try {
+    const openMeteoPayload = await tryOpenMeteoWeather(city)
+    if (openMeteoPayload) {
+      return NextResponse.json(openMeteoPayload, { status: 200 })
+    }
+  } catch {
+    // Fall through to the OpenWeather path.
+  }
+
   if (!apiKey) {
     return NextResponse.json(
       { ...fallbackPayload, warning: "Missing weather API key on server" },
@@ -348,6 +504,12 @@ export async function GET(request: NextRequest) {
         pressure: data?.main?.pressure,
         visibilityKm: typeof data?.visibility === "number" ? data.visibility / 1000 : null,
         windKmh: typeof data?.wind?.speed === "number" ? data.wind.speed * 3.6 : null,
+        currentRainMm: typeof data?.rain?.["1h"] === "number"
+          ? Number(data.rain["1h"].toFixed(1))
+          : 0,
+        currentRainChance: typeof hourly?.[0]?.rainChance === "number"
+          ? Math.min(100, Math.max(0, Math.round(hourly[0].rainChance)))
+          : 0,
         condition: data?.weather?.[0]?.main ?? "Clear",
         description: data?.weather?.[0]?.description ?? "Clear sky",
         coord: {
@@ -356,6 +518,7 @@ export async function GET(request: NextRequest) {
         },
         hourly,
         daily,
+        history: [],
         astronomy,
         updatedAt: new Date().toISOString(),
       },

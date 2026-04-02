@@ -9,6 +9,28 @@ type UvWeeklyForecastProps = {
 }
 
 export function UvWeeklyForecast({ data }: UvWeeklyForecastProps) {
+  if (!data || data.length === 0) {
+    return (
+      <section className="relative mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+              <ShieldAlert className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+              7-Day UV Forecast
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-300">Daily maximum UV data is unavailable.</p>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            --
+          </span>
+        </div>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+          UV daily forecast values will appear here when live data is available.
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="relative mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_12%,rgba(56,189,248,0.16),transparent_35%),radial-gradient(circle_at_8%_86%,rgba(14,165,233,0.08),transparent_38%)] dark:bg-[radial-gradient(circle_at_88%_12%,rgba(56,189,248,0.22),transparent_35%),radial-gradient(circle_at_8%_86%,rgba(14,165,233,0.15),transparent_38%)]" />
@@ -73,11 +95,14 @@ export function UvWeeklyForecast({ data }: UvWeeklyForecastProps) {
                   </div>
                   <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                     <Sun className="h-3.5 w-3.5 text-amber-500" />
-                    Max UV intensity indicator
+                    Highest UV intensity of that day
                   </div>
                 </div>
                 <div className="text-right sm:block">
-                  <p className="text-base font-bold leading-none text-slate-900 dark:text-slate-50">{item.uvMax.toFixed(1)}</p>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Max</p>
+                    <p className="text-base font-bold leading-none text-slate-900 dark:text-slate-50">{item.uvMax.toFixed(1)}</p>
+                  </div>
                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getUvToneClasses(item.uvMax)}`}>
                     {category}
                   </span>

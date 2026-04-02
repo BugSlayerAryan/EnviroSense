@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
+import { buildCityRoute, buildDashboardRoute, extractDashboardCityFromPathname, extractCityFromPathname, isDashboardRoute } from "@/lib/location-route"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -43,9 +44,17 @@ export function MobileNav() {
 function MobileNavClient() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const city = searchParams.get("city")
+  const city = searchParams.get("city") ?? extractDashboardCityFromPathname(pathname) ?? extractCityFromPathname(pathname)
 
   const buildHref = (href: string) => {
+    if (href === "/") {
+      return buildDashboardRoute(city ?? "New Delhi, India")
+    }
+
+    if ((href === "/weather" || href === "/airqualit" || href === "/uv-index") && city) {
+      return buildCityRoute(href, city)
+    }
+
     const params = new URLSearchParams(searchParams.toString())
     if (city) {
       params.set("city", city)
@@ -73,13 +82,15 @@ function MobileNavClient() {
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.85 }}
                 className={`relative shrink-0 flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all cursor-pointer group ${
-                  pathname === item.href
+                    item.href === "/"
+                      ? isDashboardRoute(pathname)
+                      : pathname === item.href || pathname.startsWith(`${item.href}/`)
                     ? "text-blue-600 dark:text-blue-300"
                     : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 }`}
               >
                 {/* Active background */}
-                {pathname === item.href && (
+                  {(item.href === "/" ? isDashboardRoute(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)) && (
                   <motion.div
                     layoutId="mobileActiveIndicator"
                     className="absolute inset-0 -z-10 rounded-xl bg-white/70 shadow-sm dark:bg-white/10 dark:shadow-[0_0_20px_rgba(59,130,246,0.35)]"
@@ -92,7 +103,7 @@ function MobileNavClient() {
                 {/* Icon */}
                 <Link href={buildHref(item.href)} className="relative flex flex-col items-center gap-1.5">
                   <motion.div
-                    animate={pathname === item.href ? { scale: [1, 1.2, 1] } : {}}
+                    animate={(item.href === "/" ? isDashboardRoute(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)) ? { scale: [1, 1.2, 1] } : {}}
                     transition={{ duration: 2, repeat: Infinity }}
                     className="relative"
                   >
@@ -100,14 +111,14 @@ function MobileNavClient() {
                   </motion.div>
                   <motion.span 
                     className="text-[10px] font-semibold whitespace-nowrap leading-none"
-                    animate={pathname === item.href ? { scale: [1, 0.95, 1] } : {}}
+                    animate={(item.href === "/" ? isDashboardRoute(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)) ? { scale: [1, 0.95, 1] } : {}}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
                     {item.label}
                   </motion.span>
                   
                   {/* Glow effect for active */}
-                  {pathname === item.href && (
+                  {(item.href === "/" ? isDashboardRoute(pathname) : pathname === item.href || pathname.startsWith(`${item.href}/`)) && (
                     <motion.div
                       className="absolute inset-0 -z-10 rounded-full bg-blue-300/30 blur-lg"
                       animate={{ scale: [1, 1.3, 1] }}

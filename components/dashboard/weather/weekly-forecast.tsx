@@ -54,8 +54,9 @@ export function WeeklyForecast({
   error = null,
   onRetry,
 }: WeeklyForecastProps) {
-  const weekMin = Math.min(...data.map((item) => item.min))
-  const weekMax = Math.max(...data.map((item) => item.max))
+  const hasData = data.length > 0
+  const weekMin = hasData ? Math.min(...data.map((item) => item.min)) : 0
+  const weekMax = hasData ? Math.max(...data.map((item) => item.max)) : 0
 
   return (
     <section className="mb-6 w-full rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_20px_54px_rgba(15,23,42,0.1)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
@@ -71,7 +72,7 @@ export function WeeklyForecast({
 
       {loading ? <WeeklyForecastSkeleton /> : null}
       {!loading && error ? <WeeklyForecastError message={error} onRetry={onRetry} /> : null}
-      {!loading && !error ? (
+      {!loading && !error && hasData ? (
         <div className="space-y-2.5">
           {data.map((item, index) => (
             <ForecastRow
@@ -83,6 +84,11 @@ export function WeeklyForecast({
               weekMax={weekMax}
             />
           ))}
+        </div>
+      ) : null}
+      {!loading && !error && !hasData ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+          Weekly weather data is unavailable.
         </div>
       ) : null}
     </section>
