@@ -3,6 +3,17 @@
 import { useEffect } from "react"
 import L from "leaflet"
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet"
+// Helper to trigger map.invalidateSize() after mount and on resize
+function InvalidateMapSize() {
+  const map = useMap()
+  useEffect(() => {
+    map.invalidateSize()
+    const handle = () => map.invalidateSize()
+    window.addEventListener("resize", handle)
+    return () => window.removeEventListener("resize", handle)
+  }, [map])
+  return null
+}
 import type { CityMarker, LayerView } from "@/components/dashboard/maps/types"
 import { MarkerPopup } from "@/components/dashboard/maps/marker-popup"
 
@@ -155,19 +166,19 @@ export function MapView({ markers, center, zoom, activeLayer, tileUrl, tileAttri
         }
       `}</style>
       <MapContainer key={`${safeCenter[0]}-${safeCenter[1]}-${zoom}`} center={safeCenter} zoom={zoom} className="h-full w-full" zoomControl scrollWheelZoom>
-      <TileLayer attribution={tileAttribution} url={tileUrl} />
-
-      {safeMarkers.map((marker) => (
-        <Marker
-          key={marker.id}
-          position={[marker.lat, marker.lng]}
-          icon={createMarkerIcon(marker)}
-        >
-          <Popup>
-            <MarkerPopup marker={marker} activeLayer={activeLayer} />
-          </Popup>
-        </Marker>
-      ))}
+        <InvalidateMapSize />
+        <TileLayer attribution={tileAttribution} url={tileUrl} />
+        {safeMarkers.map((marker) => (
+          <Marker
+            key={marker.id}
+            position={[marker.lat, marker.lng]}
+            icon={createMarkerIcon(marker)}
+          >
+            <Popup>
+              <MarkerPopup marker={marker} activeLayer={activeLayer} />
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
     </>
   )

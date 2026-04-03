@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { ArrowRight, MapPin, Plus, Search, Trash2 } from "lucide-react"
 import { DashboardBackground } from "@/components/dashboard/background"
@@ -20,6 +21,20 @@ function normalizeCity(value: string) {
 
 export default function SaveCityPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const cityParam = searchParams.get("city")
+  let cityCountry = null
+  let cityName = null
+  if (cityParam) {
+    // Try to split "City, Country" format
+    const parts = cityParam.split(",")
+    if (parts.length >= 2) {
+      cityName = parts[0].trim()
+      cityCountry = parts.slice(1).join(",").trim()
+    } else {
+      cityName = cityParam.trim()
+    }
+  }
   const [mounted, setMounted] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [cities, setCities] = useState<string[]>([])
@@ -100,8 +115,20 @@ export default function SaveCityPage() {
                   {/* <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
                     Add cities to local storage for quick access across the app. No backend required.
                   </p> */}
+                  {cityParam && cityCountry && cityName && !cities.some((city) => city.toLowerCase() === `${cityName}, ${cityCountry}`.toLowerCase()) && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+                        onClick={() => {
+                          setCities((current) => [`${cityName}, ${cityCountry}`, ...current])
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Save current city: {cityName}, {cityCountry}
+                      </button>
+                    </div>
+                  )}
                 </div>
-
                 <div className="inline-flex rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800/85 dark:text-slate-300">
                   {hasSavedCities ? `${cities.length} cities saved` : "No cities saved yet"}
                 </div>

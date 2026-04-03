@@ -27,8 +27,8 @@ export function ForecastRow({ day, index, isToday, weekMin, weekMax }: ForecastR
       whileHover={{ y: -2 }}
       className={`group relative w-full overflow-hidden rounded-2xl border p-3.5 transition-all duration-300 sm:p-4 ${
         isToday
-          ? "border-sky-300 bg-linear-to-r from-sky-50/95 via-cyan-50/90 to-blue-50/85 shadow-[0_14px_34px_rgba(14,165,233,0.2)] ring-1 ring-sky-200/70 dark:border-sky-400/40 dark:from-sky-500/20 dark:via-cyan-500/15 dark:to-blue-500/10 dark:ring-sky-400/30"
-          : "border-slate-200 bg-white/85 shadow-[0_10px_24px_rgba(15,23,42,0.06)] ring-1 ring-white/80 hover:shadow-[0_14px_28px_rgba(15,23,42,0.09)] dark:border-slate-700 dark:bg-slate-800/85 dark:ring-slate-700/40"
+          ? "border-white/10 bg-white/10 shadow-[0_10px_24px_rgba(15,23,42,0.06)] ring-1 ring-white/80 dark:border-white/10 dark:bg-white/10 dark:ring-slate-700/40 sm:border-sky-300 sm:bg-linear-to-r sm:from-sky-50/95 sm:via-cyan-50/90 sm:to-blue-50/85 sm:shadow-[0_14px_34px_rgba(14,165,233,0.2)] sm:ring-sky-200/70 sm:dark:border-sky-400/40 sm:dark:from-sky-500/20 sm:dark:via-cyan-500/15 sm:dark:to-blue-500/10 sm:dark:ring-sky-400/30"
+          : "border-white/10 bg-white/10 shadow-[0_10px_24px_rgba(15,23,42,0.06)] ring-1 ring-white/80 hover:shadow-[0_14px_28px_rgba(15,23,42,0.09)] dark:border-white/10 dark:bg-white/10 dark:ring-slate-700/40 sm:border-slate-200 sm:bg-white/85 sm:dark:border-slate-700 sm:dark:bg-slate-800/85"
       }`}
     >
       <div className="grid grid-cols-[60px_40px_1fr_auto] items-center gap-2.5 sm:grid-cols-[72px_44px_1fr_auto] sm:gap-3">

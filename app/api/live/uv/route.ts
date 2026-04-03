@@ -102,7 +102,7 @@ async function tryOpenMeteoUv(city: string) {
   const hourlyTimes = Array.isArray(data?.hourly?.time) ? data.hourly.time : []
   const dailyTimes = Array.isArray(data?.daily?.time) ? data.daily.time : []
 
-  const hourly = hourlyTimes.slice(0, 12).map((time: string, index: number) => {
+  const hourly = hourlyTimes.slice(0, 24).map((time: string, index: number) => {
     const uv = typeof data?.hourly?.uv_index?.[index] === "number" ? Number(data.hourly.uv_index[index].toFixed(1)) : 0
     return {
       time: formatLocalHour(time, timeZone),
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
           const forecastData = await forecastResponse.json()
           const list = Array.isArray(forecastData?.list) ? forecastData.list : []
 
-          const mappedHourly = list.slice(0, 12).map((item: any) => {
+          const mappedHourly = list.slice(0, 24).map((item: any) => {
             const dt = toFiniteNumber(item?.dt, 0)
             const localHour = toLocalHour(dt, timezoneOffset)
             const cloud = toFiniteNumber(item?.clouds?.all, cloudPercent)
@@ -282,7 +282,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const hourly = (oneCallData?.hourly ?? []).slice(0, 12).map((item: any) => {
+    const hourly = (oneCallData?.hourly ?? []).slice(0, 24).map((item: any) => {
       const timezoneOffset = typeof oneCallData?.timezone_offset === "number" ? oneCallData.timezone_offset : 0
       const dt = toFiniteNumber(item?.dt, 0)
       return {

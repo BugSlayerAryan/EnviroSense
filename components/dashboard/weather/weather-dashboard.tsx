@@ -516,7 +516,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.03, duration: 0.3 }}
-        className="relative mb-4 overflow-hidden rounded-3xl border border-white/15 bg-white/25 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-lg md:hidden dark:border-white/10 dark:bg-white/10"
+        className="relative mb-4 overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-lg md:hidden dark:border-white/10 dark:bg-white/10"
       >
         <div className={`pointer-events-none absolute inset-0 bg-linear-to-br ${weatherHeroTone.panel}`} />
         <div className="relative z-10 space-y-4">
@@ -662,7 +662,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         </div>
       </motion.div>
 
-      <div className="mb-6 rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_16px_46px_rgba(15,23,42,0.08)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/65 dark:ring-slate-700/50 sm:p-5">
+      <div className="mb-6 rounded-3xl border border-slate-200/80 bg-white/10 p-4 shadow-[0_16px_46px_rgba(15,23,42,0.08)] ring-1 ring-white/70 backdrop-blur-xl md:bg-white/80 dark:border-slate-700/70 dark:bg-white/10 md:dark:bg-slate-900/65 dark:ring-slate-700/50 sm:p-5">
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">Hourly Forecast</h3>
           <p className="inline-flex w-fit items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-300">
@@ -686,7 +686,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, delay: 0.04 * index }}
                 whileHover={{ y: -4, scale: 1.01 }}
-                className="relative min-w-32 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-white dark:border-slate-700 dark:bg-slate-800/90 dark:ring-slate-700/40"
+                className="relative min-w-32 overflow-hidden rounded-2xl border border-slate-200 bg-white/10 p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-white md:bg-white/95 dark:border-slate-700 dark:bg-white/10 md:dark:bg-slate-800/90 dark:ring-slate-700/40"
               >
                 <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-sky-100/70 blur-2xl dark:bg-sky-500/20" />
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-300">{item.time}</p>
@@ -704,7 +704,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
               </motion.article>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white/10 p-4 text-sm text-slate-500 md:bg-slate-50/80 dark:border-slate-700 dark:bg-white/10 md:dark:bg-slate-800/60 dark:text-slate-300">
                 Hourly weather data is unavailable.
               </div>
             )}

@@ -19,7 +19,7 @@ function WeeklyForecastSkeleton() {
       {Array.from({ length: 7 }).map((_, idx) => (
         <div
           key={`weekly-skeleton-${idx}`}
-          className="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.06)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/65 dark:ring-slate-700/40"
+          className="rounded-2xl border border-slate-200/80 bg-white/10 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.06)] ring-1 ring-white/70 backdrop-blur-xl md:bg-white/80 dark:border-slate-700/70 dark:bg-white/10 md:dark:bg-slate-900/65 dark:ring-slate-700/40"
         />
       ))}
     </div>
@@ -59,7 +59,7 @@ export function WeeklyForecast({
   const weekMax = hasData ? Math.max(...data.map((item) => item.max)) : 0
 
   return (
-    <section className="mb-6 w-full rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_20px_54px_rgba(15,23,42,0.1)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
+    <section className="mb-6 w-full rounded-3xl border border-slate-200/80 bg-white/10 p-4 shadow-[0_20px_54px_rgba(15,23,42,0.1)] ring-1 ring-white/70 backdrop-blur-xl md:bg-white/80 dark:border-slate-700/70 dark:bg-white/10 md:dark:bg-slate-900/70 dark:ring-slate-700/50 sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h3>
@@ -87,7 +87,7 @@ export function WeeklyForecast({
         </div>
       ) : null}
       {!loading && !error && !hasData ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/10 p-4 text-sm text-slate-500 md:bg-slate-50/80 dark:border-slate-700 dark:bg-white/10 md:dark:bg-slate-800/60 dark:text-slate-300">
           Weekly weather data is unavailable.
         </div>
       ) : null}

@@ -18,8 +18,8 @@ function LoadingCard({ className, children }: { className?: string; children?: R
 
 export function EnvironmentScoreSkeleton() {
   return (
-    <div className="glass-card relative overflow-hidden p-0">
-      <div className="relative z-10 grid grid-cols-1 gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(0,1fr)_260px] lg:p-5">
+    <div className="glass-card relative overflow-hidden p-0 w-full max-w-md mx-auto bg-white/90 dark:bg-slate-900/80 sm:bg-white/80 sm:dark:bg-slate-900/70">
+      <div className="relative z-10 flex flex-col gap-3 p-4 sm:grid sm:grid-cols-[minmax(0,1fr)_260px] sm:p-4 lg:p-5">
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="space-y-2">
@@ -53,12 +53,12 @@ export function EnvironmentScoreSkeleton() {
           </div>
         </div>
 
-        <LoadingCard className="flex h-full min-h-52.5 flex-col p-2.5 sm:p-3">
-          <div className="mb-2 flex items-center justify-between">
+        <LoadingCard className="flex h-full min-h-52.5 flex-col p-2.5 items-center justify-center">
+          <div className="mb-2 flex items-center justify-between w-full">
             <Skeleton className="h-4 w-24 rounded-full" />
             <Skeleton className="h-3 w-16 rounded-full" />
           </div>
-          <div className="relative flex flex-1 items-center justify-center py-1">
+          <div className="relative flex flex-1 items-center justify-center py-1 w-full">
             <div className="absolute inset-0 rounded-full bg-linear-to-tr from-slate-300/30 via-slate-200/30 to-slate-300/20 blur-2xl dark:from-slate-600/20 dark:via-slate-500/15 dark:to-slate-600/10" />
             <div className="relative flex items-center justify-center">
               <Skeleton className="h-36 w-36 rounded-full border border-white/40" />

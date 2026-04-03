@@ -1075,10 +1075,10 @@ export function AirQualityDashboard({ initialCity }: AirQualityDashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.04, duration: 0.3 }}
         whileTap={{ scale: 0.998 }}
-        className="mb-4 rounded-2xl border border-white/20 bg-white/30 p-4 shadow-[0_6px_20px_rgba(0,0,0,0.08)] backdrop-blur-lg transition-transform duration-200 hover:scale-[1.01] md:hidden"
+        className="mb-4 rounded-2xl border border-white/20 bg-white/30 dark:bg-linear-to-br dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-4 shadow-[0_6px_20px_rgba(0,0,0,0.08)] backdrop-blur-lg transition-transform duration-200 hover:scale-[1.01] md:hidden"
       >
         <div className={`pointer-events-none absolute inset-0 rounded-2xl bg-linear-to-br ${heroTintClass}`} />
-        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-linear-to-br from-white/40 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-linear-to-br from-white/40 to-transparent dark:from-slate-800/60 dark:to-slate-900/40" />
         <div className="relative z-10 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
