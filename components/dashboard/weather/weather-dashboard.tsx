@@ -12,6 +12,7 @@ import {
   Gauge,
   MapPin,
   MoonStar,
+  RefreshCw,
   Sun,
   Sunrise,
   Sunset,
@@ -23,6 +24,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -111,6 +113,133 @@ function formatRainIntensity(rainMm: number | null) {
   return typeof rainMm === "number" ? getRainIntensityLabel(rainMm) : "--"
 }
 
+function parseClockTime(value: string | null) {
+  if (!value) return null
+  const trimmed = value.trim()
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i)
+  if (!match) return null
+
+  let hour = Number(match[1])
+  const minute = Number(match[2] ?? 0)
+  const meridiem = match[3]?.toUpperCase() ?? null
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+  if (meridiem === "PM" && hour < 12) hour += 12
+  if (meridiem === "AM" && hour === 12) hour = 0
+
+  return hour * 60 + minute
+}
+
+function parseDaylightHours(value: string | null) {
+  if (!value) return null
+  const match = value.match(/(\d+(?:\.\d+)?)/)
+  if (!match) return null
+  const hours = Number(match[1])
+  if (!Number.isFinite(hours)) return null
+  return hours
+}
+
+function getWeatherHeroTone(temperature: number | null, condition: string | null) {
+  const value = condition?.toLowerCase() ?? ""
+
+  if (value.includes("rain") || value.includes("shower")) {
+    return {
+      panel: "from-sky-100/70 via-cyan-50/40 to-blue-100/45 dark:from-sky-500/20 dark:via-cyan-500/10 dark:to-blue-500/8",
+      badge: "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+      accent: "text-sky-700 dark:text-sky-300",
+    }
+  }
+
+  if (value.includes("cloud") || value.includes("haze")) {
+    return {
+      panel: "from-slate-100/70 via-slate-50/45 to-cyan-100/35 dark:from-slate-500/20 dark:via-slate-500/10 dark:to-cyan-500/8",
+      badge: "bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200",
+      accent: "text-slate-700 dark:text-slate-200",
+    }
+  }
+
+  if (typeof temperature === "number" && temperature >= 32) {
+    return {
+      panel: "from-amber-100/75 via-orange-50/40 to-rose-100/35 dark:from-amber-500/20 dark:via-orange-500/10 dark:to-rose-500/8",
+      badge: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+      accent: "text-amber-700 dark:text-amber-300",
+    }
+  }
+
+  return {
+    panel: "from-sky-100/65 via-emerald-50/40 to-cyan-100/35 dark:from-sky-500/18 dark:via-emerald-500/10 dark:to-cyan-500/8",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+    accent: "text-sky-700 dark:text-sky-300",
+  }
+}
+
+function getWeatherInsight(temperature: number | null, humidity: number | null, windKmh: number | null, uvIndex: number | null, rainChance: number | null) {
+  const firstLine = typeof humidity === "number" && humidity >= 75
+    ? "High humidity — feels warmer"
+    : typeof temperature === "number" && temperature >= 30
+      ? "Warm weather — stay hydrated"
+      : typeof temperature === "number" && temperature <= 18
+        ? "Cooler air — feels crisp"
+        : "Comfortable weather — easy to be outside"
+
+  const secondLine = typeof rainChance === "number" && rainChance >= 40
+    ? "Carry an umbrella if you are heading out"
+    : typeof uvIndex === "number" && uvIndex >= 6
+      ? "Good for short outdoor trips, avoid harsh sun"
+      : typeof windKmh === "number" && windKmh >= 20
+        ? "Good for short outdoor trips, lighter layers help"
+        : "Good for short outdoor trips"
+
+  return [firstLine, secondLine]
+}
+
+function getWeatherSummary(temperature: number | null, humidity: number | null, windKmh: number | null, conditionText: string | null) {
+  if (typeof humidity === "number" && humidity >= 75) {
+    return "Comfortable conditions with higher humidity and a warmer feel."
+  }
+
+  if (typeof windKmh === "number" && windKmh <= 10 && typeof temperature === "number" && temperature >= 24) {
+    return `Comfortable conditions with moderate humidity and low wind.`
+  }
+
+  if (typeof temperature === "number" && temperature <= 18) {
+    return "Cooler conditions with a crisp, calm feel."
+  }
+
+  if (conditionText?.toLowerCase().includes("rain")) {
+    return "Rainy conditions with steady moisture in the air."
+  }
+
+  return "Comfortable conditions with moderate humidity and low wind."
+}
+
+function getPrecipitationStory(day: string | null, probability: number | null) {
+  if (!day || typeof probability !== "number") return "Rain outlook is still building with live data."
+  if (probability >= 70) return `Rain likely on ${day} with peak intensity.`
+  if (probability >= 40) return `Rain possible on ${day}, so plan for changing conditions.`
+  return `Light rain chance on ${day}, mostly manageable outdoors.`
+}
+
+function getDaylightProgress(sunriseText: string | null, sunsetText: string | null, daylightText: string | null, nowMs: number) {
+  const sunriseMinutes = parseClockTime(sunriseText)
+  const sunsetMinutes = parseClockTime(sunsetText)
+  if (sunriseMinutes === null || sunsetMinutes === null || sunsetMinutes <= sunriseMinutes) {
+    return {
+      progress: 50,
+      daylightLabel: daylightText ?? "--",
+    }
+  }
+
+  const now = new Date(nowMs)
+  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  const progress = Math.min(100, Math.max(0, ((nowMinutes - sunriseMinutes) / (sunsetMinutes - sunriseMinutes)) * 100))
+
+  return {
+    progress,
+    daylightLabel: daylightText ?? "--",
+  }
+}
+
 function ChartTooltip({
   active,
   payload,
@@ -126,8 +255,9 @@ function ChartTooltip({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 text-xs text-slate-700 shadow-lg backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200">
-      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 font-semibold">Rain: {typeof rainMm === "number" ? rainMm.toFixed(1) : "0.0"} mm</p>
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Day</p>
+      <p className="mt-0.5 font-semibold text-slate-900 dark:text-slate-50">{label}</p>
+      <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">Rain: {typeof rainMm === "number" ? rainMm.toFixed(1) : "0.0"} mm</p>
       {probability !== undefined ? <p className="text-[11px] text-sky-700 dark:text-sky-300">Probability: {probability}%</p> : null}
     </div>
   )
@@ -278,8 +408,8 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
       }
       setUvIndex(typeof uvData?.currentUv === "number" ? Math.round(uvData.currentUv) : null)
 
-      const lat = typeof weatherData?.coord?.lat === "number" ? weatherData.coord.lat : null
-      const lon = typeof weatherData?.coord?.lon === "number" ? weatherData.coord.lon : null
+      const lat = typeof weatherData?.coord?.lat === "number" && Number.isFinite(weatherData.coord.lat) ? weatherData.coord.lat : null
+      const lon = typeof weatherData?.coord?.lon === "number" && Number.isFinite(weatherData.coord.lon) ? weatherData.coord.lon : null
       if (typeof lat === "number" && typeof lon === "number") {
         const markerCity = typeof weatherData?.city === "string" ? weatherData.city : selectedCity
         const markerCountry = typeof weatherData?.country === "string" ? weatherData.country : ""
@@ -341,6 +471,23 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
   }, [cityQuery])
 
   const weatherUpdatedLabel = formatMinutesAgo(weatherUpdatedAt, nowMs)
+  const weatherHeroTone = useMemo(() => getWeatherHeroTone(temperature, conditionText), [conditionText, temperature])
+  const weatherInsight = useMemo(
+    () => getWeatherInsight(temperature, humidity, windKmh, uvIndex, currentRainChance),
+    [currentRainChance, humidity, temperature, uvIndex, windKmh],
+  )
+  const weatherSummary = useMemo(
+    () => getWeatherSummary(temperature, humidity, windKmh, conditionText),
+    [conditionText, humidity, temperature, windKmh],
+  )
+  const precipitationStory = useMemo(
+    () => getPrecipitationStory(peakPrecipitation.day, peakPrecipitation.probability),
+    [peakPrecipitation.day, peakPrecipitation.probability],
+  )
+  const daylightTimeline = useMemo(
+    () => getDaylightProgress(sunriseText, sunsetText, daylightText, nowMs),
+    [daylightText, nowMs, sunriseText, sunsetText],
+  )
 
   if (isLoading) {
     return (
@@ -366,10 +513,88 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
       ) : null}
 
       <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.03, duration: 0.3 }}
+        className="relative mb-4 overflow-hidden rounded-3xl border border-white/15 bg-white/25 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-lg md:hidden dark:border-white/10 dark:bg-white/10"
+      >
+        <div className={`pointer-events-none absolute inset-0 bg-linear-to-br ${weatherHeroTone.panel}`} />
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{formatText(location)}</span>
+                <span className="rounded-full border border-white/30 bg-white/55 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-300">
+                  Live
+                </span>
+              </div>
+              <div className="mt-2 space-y-1">
+                <div className="relative inline-flex items-center">
+                  <span className={`pointer-events-none absolute inset-x-2 top-3 h-8 rounded-full bg-linear-to-r ${weatherHeroTone.panel} blur-2xl opacity-70`} />
+                  <p className="relative text-6xl font-bold leading-none tracking-[-0.05em] text-slate-900 dark:text-white">
+                    {typeof temperature === "number" ? temperature : "--"}°C
+                  </p>
+                </div>
+                <p className={`text-sm font-semibold ${weatherHeroTone.accent}`}>
+                  {formatText(conditionText)} • Feels like {typeof feelsLike === "number" ? `${feelsLike}°C` : "--"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleRefresh()}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/45 text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] dark:border-white/10 dark:bg-white/10 dark:text-slate-100"
+              aria-label="Refresh weather data"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs opacity-70 dark:opacity-70">
+            <span className="inline-flex items-center gap-1">
+              <Sun className="h-3 w-3" />
+              {weatherUpdatedLabel}
+            </span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1">
+              <ThermometerSun className="h-3 w-3" />
+              {typeof pressure === "number" ? `${pressure} hPa` : "-- hPa"}
+            </span>
+          </div>
+
+          <div className="border-l-2 border-blue-300 pl-3 text-xs font-medium leading-relaxed text-slate-700 dark:border-blue-400 dark:text-slate-200">
+            <p>{weatherInsight[0]}</p>
+            <p className="mt-0.5">{weatherInsight[1]}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {conditionSnapshot.map((item) => {
+              const Icon = item.icon
+              return (
+                <motion.div
+                  key={`mobile-${item.label}`}
+                  whileTap={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02 }}
+                  className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 shadow-[0_4px_14px_rgba(15,23,42,0.035)] backdrop-blur-md transition-all duration-200 dark:border-white/10 dark:bg-white/10"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <Icon className={`h-3.5 w-3.5 ${item.color}`} />
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">{item.label}</p>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">{item.value}</p>
+                </motion.div>
+              )
+            })}
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.04, duration: 0.35 }}
-        className="relative mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_20px_60px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/60 sm:p-6"
+        className="relative mb-6 hidden overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-[0_20px_60px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/60 sm:p-6 md:block"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(14,165,233,0.16),transparent_42%),radial-gradient(circle_at_82%_16%,rgba(56,189,248,0.12),transparent_34%),linear-gradient(160deg,rgba(255,255,255,0.64),rgba(248,250,252,0.72))] dark:bg-[radial-gradient(circle_at_18%_20%,rgba(14,165,233,0.24),transparent_42%),radial-gradient(circle_at_82%_16%,rgba(56,189,248,0.18),transparent_34%),linear-gradient(160deg,rgba(15,23,42,0.86),rgba(30,41,59,0.8))]" />
         <div className="relative z-10 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_420px] lg:items-center">
@@ -496,7 +721,147 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         onRetry={handleRefresh}
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mb-6 space-y-4 md:hidden">
+        <motion.article
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          whileHover={{ y: -1 }}
+          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-md shadow-sm"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Weather Summary</p>
+          <p className="mt-1 text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{weatherSummary}</p>
+        </motion.article>
+
+        <motion.article
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.03 }}
+          whileHover={{ y: -1 }}
+          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-md shadow-sm"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Weather Details</p>
+              <p className="mt-1 text-xs text-slate-500/90 dark:text-slate-300/90">Live atmospheric signals</p>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{weatherUpdatedLabel}</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {weatherDetails.map((detail) => {
+              const Icon = detail.icon
+              return (
+                <motion.div
+                  key={`mobile-detail-${detail.label}`}
+                  whileTap={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02 }}
+                  className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 shadow-sm transition-all duration-200 backdrop-blur-md"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <Icon className="h-3.5 w-3.5 text-slate-500 dark:text-slate-300" />
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">{detail.label}</p>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{detail.value}</p>
+                </motion.div>
+              )
+            })}
+          </div>
+        </motion.article>
+
+        <motion.article
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.06 }}
+          whileHover={{ y: -1 }}
+          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-md shadow-sm"
+        >
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Precipitation</p>
+              <p className="mt-1 text-xs font-medium leading-relaxed text-slate-700 dark:text-slate-200">{precipitationStory}</p>
+            </div>
+            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{averageRainChanceLabel}</span>
+          </div>
+
+          <div className="mt-3 h-52 rounded-2xl border border-white/10 bg-white/10 p-2 backdrop-blur-md">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={precipitationSeries}>
+                <defs>
+                  <linearGradient id="precipLineGradientMobile" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="50%" stopColor="#38bdf8" />
+                    <stop offset="100%" stopColor="#2563eb" />
+                  </linearGradient>
+                  <linearGradient id="precipFillGradientMobile" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.18} />
+                    <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" strokeOpacity={0.08} />
+                <XAxis dataKey="day" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="chance" domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={22} />
+                <YAxis yAxisId="rain" orientation="right" domain={[0, Math.ceil(maxRainMm)]} tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} width={22} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area yAxisId="chance" type="monotone" dataKey="probability" stroke="none" fill="url(#precipFillGradientMobile)" />
+                <Line
+                  yAxisId="rain"
+                  type="monotone"
+                  dataKey="rainMm"
+                  stroke="url(#precipLineGradientMobile)"
+                  strokeWidth={3}
+                  dot={(props: any) => {
+                    const isPeak = props?.payload?.day === peakPrecipitation.day
+                    return (
+                      <g key={`rain-dot-${props?.cx}-${props?.cy}-${props?.payload?.day}`}>
+                        {isPeak ? <circle cx={props.cx} cy={props.cy} r={8} fill="rgba(59,130,246,0.16)" /> : null}
+                        <circle cx={props.cx} cy={props.cy} r={isPeak ? 4.5 : 2.8} fill="#fff" stroke={isPeak ? "#2563eb" : "#60a5fa"} strokeWidth={1.5} />
+                        {isPeak ? <text x={props.cx} y={props.cy - 12} textAnchor="middle" className="fill-sky-700 text-[10px] font-semibold dark:fill-sky-300">Peak</text> : null}
+                      </g>
+                    )
+                  }}
+                  activeDot={{ r: 5.5, fill: "#fff", stroke: "#2563eb", strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.article>
+
+        <motion.article
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.09 }}
+          whileHover={{ y: -1 }}
+          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-md shadow-sm"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Sun & Moon</p>
+              <p className="mt-1 text-xs text-slate-500/90 dark:text-slate-300/90">Daylight {daylightTimeline.daylightLabel}</p>
+            </div>
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-300">Secondary</span>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+            <Sunrise className="h-4 w-4 text-amber-500" />
+            <span>{formatText(sunriseText)}</span>
+            <div className="h-px flex-1 bg-white/20" />
+            <Sunset className="h-4 w-4 text-orange-500" />
+            <span>{formatText(sunsetText)}</span>
+          </div>
+
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${daylightTimeline.progress}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="h-full rounded-full bg-linear-to-r from-amber-400 via-orange-400 to-violet-400"
+            />
+          </div>
+        </motion.article>
+      </div>
+
+      <div className="mb-6 hidden grid-cols-1 gap-4 lg:grid-cols-2 md:grid">
         <motion.article
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -600,7 +965,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32 }}
         whileHover={{ y: -2 }}
-        className="relative mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50"
+        className="relative mb-6 hidden overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 p-4 shadow-[0_18px_48px_rgba(14,116,144,0.12)] ring-1 ring-white/70 backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/70 dark:ring-slate-700/50 md:block"
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(251,191,36,0.15),transparent_34%),radial-gradient(circle_at_86%_22%,rgba(56,189,248,0.16),transparent_30%),radial-gradient(circle_at_70%_86%,rgba(139,92,246,0.14),transparent_34%)] dark:bg-[radial-gradient(circle_at_12%_18%,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_86%_22%,rgba(56,189,248,0.2),transparent_30%),radial-gradient(circle_at_70%_86%,rgba(139,92,246,0.2),transparent_34%)]" />
 
@@ -672,7 +1037,7 @@ export function WeatherDashboard({ initialCity }: WeatherDashboardProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
         whileHover={{ y: -2 }}
-        className="rounded-2xl border border-white/40 bg-white/60 p-4 shadow-[0_8px_32px_rgba(31,38,135,0.15)] ring-1 ring-white/30 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)]"
+        className="hidden rounded-2xl border border-white/40 bg-white/60 p-4 shadow-[0_8px_32px_rgba(31,38,135,0.15)] ring-1 ring-white/30 backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:shadow-[0_0_40px_rgba(0,0,0,0.5)] md:block"
       >
         <div className="mb-3 flex items-center justify-between">
           <div>

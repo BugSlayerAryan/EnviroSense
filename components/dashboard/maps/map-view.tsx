@@ -15,14 +15,8 @@ interface MapViewProps {
   tileAttribution: string
 }
 
-function RecenterMap({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap()
-
-  useEffect(() => {
-    map.flyTo(center, zoom, { duration: 0.8 })
-  }, [map, center, zoom])
-
-  return null
+function isValidCoord(lat: number, lng: number) {
+  return Number.isFinite(lat) && Number.isFinite(lng)
 }
 
 function createMarkerIcon(marker: CityMarker) {
@@ -49,6 +43,19 @@ function createMarkerIcon(marker: CityMarker) {
 }
 
 export function MapView({ markers, center, zoom, activeLayer, tileUrl, tileAttribution }: MapViewProps) {
+  const [centerLat, centerLng] = center
+  const hasValidCenter = isValidCoord(centerLat, centerLng)
+  const safeCenter: [number, number] = hasValidCenter ? center : [20.5937, 78.9629]
+  const safeMarkers = markers.filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng))
+
+  if (!hasValidCenter) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-white/5 text-sm text-slate-500 dark:text-slate-300">
+        Location data unavailable
+      </div>
+    )
+  }
+
   return (
     <>
       <style>{`
@@ -147,11 +154,10 @@ export function MapView({ markers, center, zoom, activeLayer, tileUrl, tileAttri
           box-shadow: 0 12px 24px rgba(15,23,42,0.32), 0 0 0 4px rgba(255,255,255,0.2);
         }
       `}</style>
-      <MapContainer center={center} zoom={zoom} className="h-full w-full" zoomControl scrollWheelZoom>
+      <MapContainer key={`${safeCenter[0]}-${safeCenter[1]}-${zoom}`} center={safeCenter} zoom={zoom} className="h-full w-full" zoomControl scrollWheelZoom>
       <TileLayer attribution={tileAttribution} url={tileUrl} />
-      <RecenterMap center={center} zoom={zoom} />
 
-      {markers.map((marker) => (
+      {safeMarkers.map((marker) => (
         <Marker
           key={marker.id}
           position={[marker.lat, marker.lng]}

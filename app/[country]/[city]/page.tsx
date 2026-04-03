@@ -6,6 +6,7 @@ import { UvCard } from "@/components/dashboard/uv-card"
 import { AqiTrendChart } from "@/components/dashboard/aqi-trend-chart"
 import { TemperatureTrendChart } from "@/components/dashboard/temperature-trend-chart"
 import { HealthTipCard } from "@/components/dashboard/health-tip-card"
+import { MobileSummary } from "@/components/dashboard/mobile-summary"
 import { Navbar } from "@/components/dashboard/navbar"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
@@ -56,18 +57,22 @@ export default async function DashboardCityPage({ params }: DashboardCityPagePro
             <Navbar />
           </div>
 
-          <section className="dashboard-scroll flex-1 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
-            <div className="mb-7 lg:mb-8">
+          <section className="dashboard-scroll flex-1 overflow-y-auto px-4 py-3 pb-24 md:px-6 md:pt-5 md:pb-24 lg:px-8 lg:pb-8 lg:pt-6">
+            <div className="mb-3 md:hidden">
+              <MobileSummary city={activeCity} />
+            </div>
+
+            <div className="mb-7 hidden md:block lg:mb-8">
               <EnvironmentScoreWrapper city={activeCity} />
             </div>
 
-            <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+            <div className="mb-3 grid grid-cols-1 gap-3 md:mb-7 md:gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
               <AqiCard initialCity={activeCity} />
               <WeatherCard initialCity={activeCity} />
               <UvCard initialCity={activeCity} />
             </div>
 
-            <div className="mb-7 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+            <div className="mb-3 grid grid-cols-1 gap-3 md:mb-7 md:gap-4 lg:grid-cols-2 lg:gap-6">
               <AqiTrendChart initialCity={activeCity} />
               <TemperatureTrendChart initialCity={activeCity} />
             </div>

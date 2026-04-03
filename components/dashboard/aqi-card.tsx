@@ -70,8 +70,8 @@ export function AqiCard({ initialCity }: AqiCardProps) {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} whileHover={{ y: -2 }} className="glass-card glow-red flex h-full flex-col p-3.5 sm:p-4 transition-all duration-300 ease-in-out">
-      <div className="mb-3 flex items-center justify-between">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }} whileHover={{ y: -2 }} className="glass-card glow-red flex h-full flex-col p-3 sm:p-4 transition-all duration-300 ease-in-out">
+      <div className="mb-2 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-gray-800 dark:text-white sm:text-base">Live Air Quality</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">Real-time monitoring · PM2.5, PM10, CO</p>
@@ -81,20 +81,20 @@ export function AqiCard({ initialCity }: AqiCardProps) {
         </button>
       </div>
 
-      <div className="mb-3 flex items-center justify-between rounded-xl bg-linear-to-r from-red-200/40 to-orange-200/40 p-4 dark:from-red-500/20 dark:to-orange-500/20">
+      <div className="mb-2 flex items-center justify-between rounded-xl bg-linear-to-r from-red-200/40 to-orange-200/40 p-3 dark:from-red-500/20 dark:to-orange-500/20 sm:p-4">
         <div>
-          <p className="text-4xl font-bold text-gray-800 dark:text-white sm:text-5xl">{aqi ?? "--"}</p>
+          <p className="text-3xl font-bold text-gray-800 dark:text-white sm:text-5xl">{aqi ?? "--"}</p>
           <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-600 dark:bg-red-500/20 dark:text-red-300">
             {aqi === null ? "--" : aqiLabel}
           </span>
         </div>
-        <Wind className="h-10 w-10 text-red-400 dark:text-red-300 sm:h-12 sm:w-12" />
+        <Wind className="h-8 w-8 text-red-400 dark:text-red-300 sm:h-12 sm:w-12" />
       </div>
 
-      <div className="flex flex-col justify-between gap-3 border-t border-white/40 pt-3 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM2.5</span><strong className="text-gray-800 dark:text-white">{pm25 ?? "--"}{pm25 !== null ? " µg/m³" : ""}</strong></div>
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>PM10</span><strong className="text-gray-800 dark:text-white">{pm10 ?? "--"}{pm10 !== null ? " µg/m³" : ""}</strong></div>
-        <div className="flex items-center justify-between rounded-lg bg-white/20 p-2.5 dark:bg-white/5 sm:p-3"><span>CO</span><strong className="text-gray-800 dark:text-white">{co ?? "--"}{co !== null ? " ppm" : ""}</strong></div>
+      <div className="flex flex-col justify-start gap-2 border-t border-white/40 pt-2 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+        <div className="flex items-center justify-between rounded-lg bg-white/20 px-3 py-2 dark:bg-white/5"><span>PM2.5</span><strong className="text-gray-800 dark:text-white">{pm25 ?? "--"}{pm25 !== null ? " µg/m³" : ""}</strong></div>
+        <div className="flex items-center justify-between rounded-lg bg-white/20 px-3 py-2 dark:bg-white/5"><span>PM10</span><strong className="text-gray-800 dark:text-white">{pm10 ?? "--"}{pm10 !== null ? " µg/m³" : ""}</strong></div>
+        <div className="flex items-center justify-between rounded-lg bg-white/20 px-3 py-2 dark:bg-white/5"><span>CO</span><strong className="text-gray-800 dark:text-white">{co ?? "--"}{co !== null ? " ppm" : ""}</strong></div>
       </div>
     </motion.div>
   )
